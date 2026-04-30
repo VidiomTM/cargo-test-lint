@@ -1,3 +1,205 @@
-fn main() {
-    println!("cargo-test-lint: stub");
+mod daemon;
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use anyhow::Result;
+use clap::Parser;
+use ctl_core::diagnostic::{
+    Diagnostic, DiagnosticCode, DiagnosticEntry, DiagnosticLevel, DiagnosticSpan,
+    resolve_byte_offsets,
+};
+use serde::Serialize;
+use std::collections::HashMap;
+use tracing::{debug, warn};
+
+#[derive(Parser)]
+#[command(
+    name = "cargo-test-lint",
+    about = "rust-analyzer check.overrideCommand",
+    ignore_errors = true
+)]
+struct Cli {
+    #[arg(long)]
+    file: Option<String>,
+
+    #[arg(long, default_value = ".")]
+    project_root: PathBuf,
+
+    #[arg(long)]
+    daemon: bool,
+}
+
+#[derive(Serialize)]
+struct CargoDiagnostic {
+    #[serde(rename = "$message_type")]
+    message_type: String,
+    code: Option<DiagnosticCode>,
+    level: String,
+    message: String,
+    spans: Vec<DiagnosticSpan>,
+    children: Vec<CargoDiagnostic>,
+    rendered: String,
+}
+
+#[derive(Serialize)]
+struct CompilerMessage {
+    reason: String,
+    package_id: String,
+    manifest_path: String,
+    target: CargoTarget,
+    message: CargoDiagnostic,
+}
+
+#[derive(Serialize)]
+struct CargoTarget {
+    kind: Vec<String>,
+    crate_types: Vec<String>,
+    name: String,
+    src_path: String,
+    edition: String,
+}
+
+impl CompilerMessage {
+    fn from_diagnostic(d: &Diagnostic, project_root: &std::path::Path) -> Self {
+        let level = match d.level {
+            DiagnosticLevel::Error => "error",
+            DiagnosticLevel::Warning => "warning",
+            DiagnosticLevel::Note => "note",
+        };
+
+        let rendered = format!("{level}: {}", d.message);
+
+        let message = CargoDiagnostic {
+            message_type: "diagnostic".into(),
+            code: d.code.clone(),
+            level: level.into(),
+            message: d.message.clone(),
+            spans: d.spans.clone(),
+            children: d
+                .children
+                .iter()
+                .map(|c| CargoDiagnostic {
+                    message_type: "diagnostic".into(),
+                    code: c.code.clone(),
+                    level: match c.level {
+                        DiagnosticLevel::Error => "error".into(),
+                        DiagnosticLevel::Warning => "warning".into(),
+                        DiagnosticLevel::Note => "note".into(),
+                    },
+                    message: c.message.clone(),
+                    spans: c.spans.clone(),
+                    children: vec![],
+                    rendered: c.message.clone(),
+                })
+                .collect(),
+            rendered,
+        };
+
+        Self {
+            reason: "compiler-message".into(),
+            package_id: "cargo-test-lint 0.1.0".into(),
+            manifest_path: project_root.join("Cargo.toml").to_string_lossy().into(),
+            target: CargoTarget {
+                kind: vec!["bin".into()],
+                crate_types: vec!["bin".into()],
+                name: "cargo-test-lint".into(),
+                src_path: project_root
+                    .join("crates")
+                    .join("ctl")
+                    .join("src")
+                    .join("main.rs")
+                    .to_string_lossy()
+                    .into(),
+                edition: "2021".into(),
+            },
+            message,
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
+        )
+        .init();
+
+    if let Err(e) = run().await {
+        tracing::error!("fatal: {e:#}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+
+async fn run() -> Result<()> {
+    let cli = Cli::parse();
+
+    if cli.daemon {
+        return run_daemon(&cli.project_root).await;
+    }
+
+    let sock = daemon::socket_path(&cli.project_root);
+
+    if !daemon::check_liveness(&sock).await {
+        debug!("daemon not alive, spawning");
+        daemon::spawn_daemon(&cli.project_root).await?;
+
+        for _ in 0..20 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            if daemon::check_liveness(&sock).await {
+                break;
+            }
+        }
+    }
+
+    let resp = daemon::nudge(&sock, cli.file.as_deref()).await?;
+
+    let entries: Vec<DiagnosticEntry> = match serde_json::from_str(&resp.diagnostics) {
+        Ok(e) => e,
+        Err(e) => {
+            warn!("failed to deserialize IPC response entries: {e}");
+            Vec::new()
+        }
+    };
+
+    let mut diagnostics: Vec<Diagnostic> = entries
+        .iter()
+        .flat_map(|e| {
+            serde_json::from_str::<Vec<Diagnostic>>(&e.diagnostics_json).unwrap_or_else(|err| {
+                warn!(
+                    "failed to deserialize diagnostics_json for {}: {err}",
+                    e.file_path.display()
+                );
+                Vec::new()
+            })
+        })
+        .collect();
+
+    let mut sources: HashMap<String, String> = HashMap::new();
+    for diag in &diagnostics {
+        for span in &diag.spans {
+            if !sources.contains_key(&span.file_name) {
+                if let Ok(content) = std::fs::read_to_string(&span.file_name) {
+                    sources.insert(span.file_name.clone(), content);
+                }
+            }
+        }
+    }
+    resolve_byte_offsets(&mut diagnostics, &sources);
+
+    for diag in &diagnostics {
+        let msg = CompilerMessage::from_diagnostic(diag, &cli.project_root);
+        println!("{}", serde_json::to_string(&msg)?);
+    }
+
+    Ok(())
+}
+
+async fn run_daemon(project_root: &std::path::Path) -> Result<()> {
+    let mut pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.to_path_buf());
+    let sock = daemon::socket_path(project_root);
+    pipeline.serve(&sock).await
 }
