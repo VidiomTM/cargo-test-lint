@@ -14,10 +14,7 @@ use std::collections::HashMap;
 use tracing::{debug, warn};
 
 #[derive(Parser)]
-#[command(
-    name = "cargo-test-lint",
-    about = "rust-analyzer check.overrideCommand"
-)]
+#[command(name = "cargo-test-lint", about = "rust-analyzer check.overrideCommand")]
 struct Cli {
     #[arg(value_name = "TEST-LINT")]
     _subcommand: Option<String>,
