@@ -19,6 +19,9 @@ use tracing::{debug, warn};
     about = "rust-analyzer check.overrideCommand"
 )]
 struct Cli {
+    #[arg(value_name = "TEST-LINT")]
+    _subcommand: Option<String>,
+
     #[arg(long)]
     file: Option<String>,
 
