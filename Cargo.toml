@@ -23,3 +23,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 notify = "7"
 ignore = "0.4"
+toml = "0.8"
+tempfile = "3"
+
+[workspace.metadata.binstall]
+pkg-url = "{ repo }/releases/download/{ version }/cargo-test-lint-{ target }{ archive-suffix }"
+bin-dir = "cargo-test-lint{ binary-ext }"
