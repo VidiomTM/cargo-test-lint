@@ -55,6 +55,7 @@ jobs:
           mkdir -p dist
           cp target/${{ matrix.target }}/release/cargo-test-lint dist/cargo-test-lint-${{ matrix.target }}
           tar -czf dist/cargo-test-lint-${{ matrix.target }}.tar.gz -C dist cargo-test-lint-${{ matrix.target }}
+          rm dist/cargo-test-lint-${{ matrix.target }}
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -62,6 +63,7 @@ jobs:
           mkdir dist
           cp target/${{ matrix.target }}/release/cargo-test-lint.exe dist/cargo-test-lint-${{ matrix.target }}.exe
           cd dist && 7z a cargo-test-lint-${{ matrix.target }}.zip cargo-test-lint-${{ matrix.target }}.exe
+          del dist\cargo-test-lint-${{ matrix.target }}.exe
 
       - uses: actions/upload-artifact@v4
         with:

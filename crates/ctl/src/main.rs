@@ -11,7 +11,7 @@ use ctl_core::diagnostic::{
 };
 use serde::Serialize;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Parser)]
 #[command(
@@ -31,31 +31,89 @@ struct Cli {
 }
 
 #[derive(Serialize)]
+struct CargoDiagnostic {
+    #[serde(rename = "$message_type")]
+    message_type: String,
+    code: Option<DiagnosticCode>,
+    level: String,
+    message: String,
+    spans: Vec<DiagnosticSpan>,
+    children: Vec<CargoDiagnostic>,
+    rendered: String,
+}
+
+#[derive(Serialize)]
 struct CompilerMessage {
     reason: String,
-    model_id: String,
-    code: Option<DiagnosticCode>,
-    message: String,
-    level: String,
-    spans: Vec<DiagnosticSpan>,
-    children: Vec<CompilerMessage>,
+    package_id: String,
+    manifest_path: String,
+    target: CargoTarget,
+    message: CargoDiagnostic,
+}
+
+#[derive(Serialize)]
+struct CargoTarget {
+    kind: Vec<String>,
+    crate_types: Vec<String>,
+    name: String,
+    src_path: String,
+    edition: String,
 }
 
 impl CompilerMessage {
-    fn from_diagnostic(d: &Diagnostic) -> Self {
+    fn from_diagnostic(d: &Diagnostic, project_root: &std::path::Path) -> Self {
         let level = match d.level {
             DiagnosticLevel::Error => "error",
             DiagnosticLevel::Warning => "warning",
             DiagnosticLevel::Note => "note",
         };
+
+        let rendered = format!("{level}: {}", d.message);
+
+        let message = CargoDiagnostic {
+            message_type: "diagnostic".into(),
+            code: d.code.clone(),
+            level: level.into(),
+            message: d.message.clone(),
+            spans: d.spans.clone(),
+            children: d
+                .children
+                .iter()
+                .map(|c| CargoDiagnostic {
+                    message_type: "diagnostic".into(),
+                    code: c.code.clone(),
+                    level: match c.level {
+                        DiagnosticLevel::Error => "error".into(),
+                        DiagnosticLevel::Warning => "warning".into(),
+                        DiagnosticLevel::Note => "note".into(),
+                    },
+                    message: c.message.clone(),
+                    spans: c.spans.clone(),
+                    children: vec![],
+                    rendered: c.message.clone(),
+                })
+                .collect(),
+            rendered,
+        };
+
         Self {
             reason: "compiler-message".into(),
-            model_id: "cargo-test-lint".into(),
-            code: d.code.clone(),
-            message: d.message.clone(),
-            level: level.into(),
-            spans: d.spans.clone(),
-            children: d.children.iter().map(Self::from_diagnostic).collect(),
+            package_id: "cargo-test-lint 0.1.0".into(),
+            manifest_path: project_root.join("Cargo.toml").to_string_lossy().into(),
+            target: CargoTarget {
+                kind: vec!["bin".into()],
+                crate_types: vec!["bin".into()],
+                name: "cargo-test-lint".into(),
+                src_path: project_root
+                    .join("crates")
+                    .join("ctl")
+                    .join("src")
+                    .join("main.rs")
+                    .to_string_lossy()
+                    .into(),
+                edition: "2021".into(),
+            },
+            message,
         }
     }
 }
@@ -99,12 +157,24 @@ async fn run() -> Result<()> {
 
     let resp = daemon::nudge(&sock, cli.file.as_deref()).await?;
 
-    let entries: Vec<DiagnosticEntry> = serde_json::from_str(&resp.diagnostics).unwrap_or_default();
+    let entries: Vec<DiagnosticEntry> = match serde_json::from_str(&resp.diagnostics) {
+        Ok(e) => e,
+        Err(e) => {
+            warn!("failed to deserialize IPC response entries: {e}");
+            Vec::new()
+        }
+    };
 
     let mut diagnostics: Vec<Diagnostic> = entries
         .iter()
         .flat_map(|e| {
-            serde_json::from_str::<Vec<Diagnostic>>(&e.diagnostics_json).unwrap_or_default()
+            serde_json::from_str::<Vec<Diagnostic>>(&e.diagnostics_json).unwrap_or_else(|err| {
+                warn!(
+                    "failed to deserialize diagnostics_json for {}: {err}",
+                    e.file_path.display()
+                );
+                Vec::new()
+            })
         })
         .collect();
 
@@ -121,7 +191,7 @@ async fn run() -> Result<()> {
     resolve_byte_offsets(&mut diagnostics, &sources);
 
     for diag in &diagnostics {
-        let msg = CompilerMessage::from_diagnostic(diag);
+        let msg = CompilerMessage::from_diagnostic(diag, &cli.project_root);
         println!("{}", serde_json::to_string(&msg)?);
     }
 

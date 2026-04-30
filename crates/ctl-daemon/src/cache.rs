@@ -18,6 +18,18 @@ impl Cache {
         Self { cache_dir }
     }
 
+    pub fn upsert_entries(&self, new_entries: &[DiagnosticEntry]) -> Result<()> {
+        fs::create_dir_all(&self.cache_dir)?;
+
+        let mut existing = self.read_entries().unwrap_or_default();
+
+        let new_paths: HashSet<PathBuf> = new_entries.iter().map(|e| e.file_path.clone()).collect();
+        existing.retain(|e| !new_paths.contains(&e.file_path));
+        existing.extend(new_entries.iter().cloned());
+
+        self.write_entries(&existing)
+    }
+
     pub fn write_entries(&self, entries: &[DiagnosticEntry]) -> Result<()> {
         fs::create_dir_all(&self.cache_dir)?;
 

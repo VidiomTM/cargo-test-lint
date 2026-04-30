@@ -38,12 +38,19 @@ impl Pipeline {
 
             info!("file-scoped pipeline for {rel}");
 
-            self.cache.invalidate(std::slice::from_ref(file));
-
             let mut all_diagnostics = Vec::new();
 
             match cov::gaps(&self.project_root).await {
                 Ok(gaps) => {
+                    let file_gaps: Vec<_> = gaps
+                        .iter()
+                        .filter(|g| {
+                            PathBuf::from(&g.file_path)
+                                .strip_prefix(&self.project_root)
+                                .is_ok_and(|p| p == file.as_path() || file.ends_with(p))
+                        })
+                        .cloned()
+                        .collect();
                     let file_matrix = CoverageMatrix::from_gaps(&gaps);
                     match self.matrix.as_mut() {
                         Some(m) => {
@@ -54,7 +61,8 @@ impl Pipeline {
                             self.matrix = Some(file_matrix);
                         }
                     }
-                    all_diagnostics.extend(ctl_core::diagnostic::coverage_to_diagnostics(&gaps));
+                    all_diagnostics
+                        .extend(ctl_core::diagnostic::coverage_to_diagnostics(&file_gaps));
                 }
                 Err(e) => {
                     warn!("coverage run failed for {rel}: {e}");
@@ -87,7 +95,7 @@ impl Pipeline {
                         .unwrap_or_default()
                         .as_secs(),
                 };
-                self.cache.write_entries(&[entry])?;
+                self.cache.upsert_entries(&[entry])?;
             }
         }
 

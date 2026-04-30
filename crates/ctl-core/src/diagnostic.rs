@@ -46,6 +46,12 @@ pub struct DiagnosticSpan {
     pub column_end: usize,
     pub is_primary: bool,
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_replacement: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion_applicability: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expansion: Option<()>,
 }
 
 pub fn coverage_to_diagnostics(gaps: &[CoverageGap]) -> Vec<Diagnostic> {
@@ -75,6 +81,9 @@ pub fn coverage_to_diagnostics(gaps: &[CoverageGap]) -> Vec<Diagnostic> {
                     column_end: col_end,
                     is_primary: true,
                     label: Some(format!("uncovered {kind}")),
+                    suggested_replacement: None,
+                    suggestion_applicability: None,
+                    expansion: None,
                 }],
                 children: vec![],
             }
@@ -119,6 +128,9 @@ pub fn mutant_to_diagnostics(mutants: &[SurvivingMutant]) -> Vec<Diagnostic> {
                         column_end: col_end,
                         is_primary: false,
                         label: Some("suggested fix".into()),
+                        suggested_replacement: Some(diff.clone()),
+                        suggestion_applicability: Some("MachineApplicable".into()),
+                        expansion: None,
                     }],
                     children: vec![],
                 });
@@ -146,6 +158,9 @@ pub fn mutant_to_diagnostics(mutants: &[SurvivingMutant]) -> Vec<Diagnostic> {
                     column_end: col_end,
                     is_primary: true,
                     label: Some("surviving mutant".into()),
+                    suggested_replacement: None,
+                    suggestion_applicability: None,
+                    expansion: None,
                 }],
                 children,
             }
