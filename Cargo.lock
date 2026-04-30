@@ -180,7 +180,9 @@ dependencies = [
  "clap",
  "ctl-core",
  "ctl-daemon",
+ "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
