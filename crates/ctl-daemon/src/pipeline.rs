@@ -96,6 +96,8 @@ impl Pipeline {
                         .as_secs(),
                 };
                 self.cache.upsert_entries(&[entry])?;
+            } else {
+                self.cache.invalidate(std::slice::from_ref(file));
             }
         }
 
@@ -153,17 +155,17 @@ impl Pipeline {
     }
 
     pub async fn serve(&mut self, socket_path: &Path) -> Result<()> {
+        let server = IpcServer::bind(socket_path).await?;
+        info!("daemon listening on {}", socket_path.display());
+
         info!("warming cache with initial full sweep");
         if let Err(e) = self.run_full_sweep().await {
             warn!("initial sweep failed: {e}");
         }
 
-        let server = IpcServer::bind(socket_path).await?;
         let mut watcher = FileWatcher::new(self.project_root.clone(), 500);
         let mut sweep_interval = tokio::time::interval(FULL_SWEEP_INTERVAL);
         sweep_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        info!("daemon listening on {}", socket_path.display());
 
         loop {
             tokio::select! {

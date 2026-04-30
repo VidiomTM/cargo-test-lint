@@ -110,7 +110,7 @@ pub fn mutant_to_diagnostics(mutants: &[SurvivingMutant]) -> Vec<Diagnostic> {
         .iter()
         .map(|m| {
             let col_start = m.col_start.unwrap_or(1) as usize;
-            let col_end = m.col_end.map(|c| c as usize).unwrap_or(col_start + m.replacement.len());
+            let col_end = m.col_end.map(|c| c as usize).unwrap_or(col_start + m.original.len());
 
             let mut children: Vec<Diagnostic> = Vec::new();
             if let Some(ref diff) = m.diff_hunk {
