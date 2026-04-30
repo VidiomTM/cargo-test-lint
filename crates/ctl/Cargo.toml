@@ -1,0 +1,20 @@
+[package]
+name = "ctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "CLI binary for cargo-test-lint (rust-analyzer check.overrideCommand)"
+
+[[bin]]
+name = "cargo-test-lint"
+path = "src/main.rs"
+
+[dependencies]
+ctl-core = { path = "../ctl-core" }
+ctl-daemon = { path = "../ctl-daemon" }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
