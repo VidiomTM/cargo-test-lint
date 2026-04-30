@@ -1,5 +1,6 @@
 mod daemon;
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -233,7 +234,8 @@ async fn run() -> Result<()> {
         println!("{}", serde_json::to_string(&msg)?);
     }
 
-    if std::env::var("RUST_LOG").is_ok() {
+    let interactive = std::io::stdout().is_terminal() || std::env::var("RUST_LOG").is_ok();
+    if interactive {
         let file_count = entries.len();
         let finding_count = diagnostics.len();
         if finding_count == 0 {
