@@ -57,19 +57,7 @@ impl Pipeline {
             }
 
             if let Some(ref matrix) = self.matrix {
-                let uncovered = matrix.uncovered_lines(file);
-                let line_filter = if uncovered.is_empty() {
-                    None
-                } else {
-                    let all_lines: Vec<u32> =
-                        (1..=u32::MAX).take(10000).filter(|l| !uncovered.contains(l)).collect();
-                    if all_lines.is_empty() {
-                        continue;
-                    }
-                    Some(all_lines)
-                };
-
-                match r#mut::run(&self.project_root, Some(&rel), line_filter).await {
+                match r#mut::run(&self.project_root, Some(&rel), None).await {
                     Ok(report) => {
                         let filtered = matrix.filter_mutant_targets(&report.mutants);
                         info!(
@@ -120,7 +108,7 @@ impl Pipeline {
                 let path = PathBuf::from(&m.file_path);
                 ctl_core::diagnostic::DiagnosticEntry {
                     file_path: path,
-                    diagnostics_json: serde_json::to_string(m).unwrap_or_default(),
+                    diagnostics_json: serde_json::to_string(&vec![m]).unwrap_or_default(),
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()

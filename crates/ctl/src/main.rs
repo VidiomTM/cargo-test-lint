@@ -5,8 +5,12 @@ use std::process::ExitCode;
 
 use anyhow::Result;
 use clap::Parser;
-use ctl_core::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticLevel, DiagnosticSpan};
+use ctl_core::diagnostic::{
+    Diagnostic, DiagnosticCode, DiagnosticEntry, DiagnosticLevel, DiagnosticSpan,
+    resolve_byte_offsets,
+};
 use serde::Serialize;
+use std::collections::HashMap;
 use tracing::debug;
 
 #[derive(Parser)]
@@ -17,6 +21,9 @@ struct Cli {
 
     #[arg(long, default_value = ".")]
     project_root: PathBuf,
+
+    #[arg(long)]
+    daemon: bool,
 }
 
 #[derive(Serialize)]
@@ -67,6 +74,11 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<()> {
     let cli = Cli::parse();
+
+    if cli.daemon {
+        return run_daemon(&cli.project_root).await;
+    }
+
     let sock = daemon::socket_path(&cli.project_root);
 
     if !daemon::check_liveness(&sock).await {
@@ -83,7 +95,26 @@ async fn run() -> Result<()> {
 
     let resp = daemon::nudge(&sock, cli.file.as_deref()).await?;
 
-    let diagnostics: Vec<Diagnostic> = serde_json::from_str(&resp.diagnostics).unwrap_or_default();
+    let entries: Vec<DiagnosticEntry> = serde_json::from_str(&resp.diagnostics).unwrap_or_default();
+
+    let mut diagnostics: Vec<Diagnostic> = entries
+        .iter()
+        .flat_map(|e| {
+            serde_json::from_str::<Vec<Diagnostic>>(&e.diagnostics_json).unwrap_or_default()
+        })
+        .collect();
+
+    let mut sources: HashMap<String, String> = HashMap::new();
+    for diag in &diagnostics {
+        for span in &diag.spans {
+            if !sources.contains_key(&span.file_name) {
+                if let Ok(content) = std::fs::read_to_string(&span.file_name) {
+                    sources.insert(span.file_name.clone(), content);
+                }
+            }
+        }
+    }
+    resolve_byte_offsets(&mut diagnostics, &sources);
 
     for diag in &diagnostics {
         let msg = CompilerMessage::from_diagnostic(diag);
@@ -91,4 +122,10 @@ async fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn run_daemon(project_root: &PathBuf) -> Result<()> {
+    let mut pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.clone());
+    let sock = daemon::socket_path(project_root);
+    pipeline.serve(&sock).await
 }

@@ -15,7 +15,7 @@ pub async fn check_liveness(socket_path: &Path) -> bool {
 
 pub async fn spawn_daemon(project_root: &Path) -> Result<()> {
     let mut cmd = tokio::process::Command::new("cargo");
-    cmd.args(["test-lint-daemon", "--project-root"])
+    cmd.args(["test-lint", "--daemon", "--project-root"])
         .arg(project_root)
         .stdin(Stdio::null())
         .stdout(Stdio::null())

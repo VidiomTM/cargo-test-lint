@@ -1,6 +1,8 @@
 use crate::coverage::CoverageGap;
 use crate::mutation::SurvivingMutant;
+use crate::span::byte_offset;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +80,20 @@ pub fn coverage_to_diagnostics(gaps: &[CoverageGap]) -> Vec<Diagnostic> {
             }
         })
         .collect()
+}
+
+pub fn resolve_byte_offsets(diagnostics: &mut [Diagnostic], sources: &HashMap<String, String>) {
+    for diag in diagnostics.iter_mut() {
+        for span in diag.spans.iter_mut() {
+            if let Some(source) = sources.get(&span.file_name) {
+                span.byte_start =
+                    byte_offset(source, span.line_start as u32, Some(span.column_start as u32));
+                span.byte_end =
+                    byte_offset(source, span.line_end as u32, Some(span.column_end as u32));
+            }
+        }
+        resolve_byte_offsets(&mut diag.children, sources);
+    }
 }
 
 pub fn mutant_to_diagnostics(mutants: &[SurvivingMutant]) -> Vec<Diagnostic> {
