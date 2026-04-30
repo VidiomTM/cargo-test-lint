@@ -16,8 +16,7 @@ use tracing::{debug, warn};
 #[derive(Parser)]
 #[command(
     name = "cargo-test-lint",
-    about = "rust-analyzer check.overrideCommand",
-    ignore_errors = true
+    about = "rust-analyzer check.overrideCommand"
 )]
 struct Cli {
     #[arg(long)]
@@ -28,6 +27,9 @@ struct Cli {
 
     #[arg(long)]
     daemon: bool,
+
+    #[arg(last = true)]
+    _rest: Vec<String>,
 }
 
 #[derive(Serialize)]

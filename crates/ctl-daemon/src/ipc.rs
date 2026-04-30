@@ -22,6 +22,9 @@ pub struct IpcServer {
 #[cfg(unix)]
 impl IpcServer {
     pub async fn bind(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         if path.exists() {
             tokio::fs::remove_file(path).await?;
         }

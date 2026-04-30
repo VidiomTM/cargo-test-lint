@@ -14,12 +14,18 @@ pub async fn check_liveness(socket_path: &Path) -> bool {
 }
 
 pub async fn spawn_daemon(project_root: &Path) -> Result<()> {
-    let mut cmd = tokio::process::Command::new("cargo");
-    cmd.args(["test-lint", "--daemon", "--project-root"])
+    let target_dir = project_root.join("target");
+    tokio::fs::create_dir_all(&target_dir).await?;
+    let log_path = target_dir.join("ctl-daemon.log");
+    let log_file = std::fs::File::create(&log_path)?;
+
+    let exe = std::env::current_exe()?;
+    let mut cmd = tokio::process::Command::new(exe);
+    cmd.args(["--daemon", "--project-root"])
         .arg(project_root)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::from(log_file))
         .process_group(0);
 
     cmd.spawn()?;
