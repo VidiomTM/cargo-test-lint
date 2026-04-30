@@ -51,13 +51,16 @@ impl FileWatcher {
         let mut accumulated: Vec<PathBuf> =
             self.rx.recv().await.ok_or_else(|| anyhow::anyhow!("watcher channel closed"))??;
 
-        let deadline = tokio::time::Instant::now() + self.debounce;
+        let mut deadline = tokio::time::Instant::now() + self.debounce;
         loop {
             tokio::select! {
                 () = tokio::time::sleep_until(deadline) => break,
                 res = self.rx.recv() => {
                     match res {
-                        Some(Ok(files)) => accumulated.extend(files),
+                        Some(Ok(files)) => {
+                            accumulated.extend(files);
+                            deadline = tokio::time::Instant::now() + self.debounce;
+                        }
                         Some(Err(e)) => warn!("watch error: {e}"),
                         None => break,
                     }
@@ -66,9 +69,9 @@ impl FileWatcher {
         }
 
         let gitignore = Arc::new(
-            ignore::gitignore::GitignoreBuilder::new(&self.project_root).build().unwrap_or_else(
-                |_| ignore::gitignore::GitignoreBuilder::new(&self.project_root).build().unwrap(),
-            ),
+            ignore::gitignore::GitignoreBuilder::new(&self.project_root)
+                .build()
+                .unwrap_or_else(|_| ignore::gitignore::Gitignore::empty()),
         );
 
         let mut seen = HashSet::new();

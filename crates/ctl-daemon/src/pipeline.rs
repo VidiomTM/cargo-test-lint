@@ -4,12 +4,14 @@ use std::time::Duration;
 use anyhow::Result;
 use tracing::{error, info, warn};
 
-use crate::cache::Cache;
-use crate::cov;
-use crate::ipc::{IpcResponse, IpcServer};
-use crate::matrix::CoverageMatrix;
-use crate::r#mut;
-use crate::watch::FileWatcher;
+use crate::{
+    cache::Cache,
+    cov,
+    ipc::{IpcResponse, IpcServer},
+    matrix::CoverageMatrix,
+    r#mut,
+    watch::FileWatcher,
+};
 
 const FULL_SWEEP_INTERVAL: Duration = Duration::from_secs(300);
 
@@ -38,6 +40,8 @@ impl Pipeline {
 
             self.cache.invalidate(std::slice::from_ref(file));
 
+            let mut all_diagnostics = Vec::new();
+
             match cov::gaps(&self.project_root).await {
                 Ok(gaps) => {
                     let file_matrix = CoverageMatrix::from_gaps(&gaps);
@@ -50,6 +54,7 @@ impl Pipeline {
                             self.matrix = Some(file_matrix);
                         }
                     }
+                    all_diagnostics.extend(ctl_core::diagnostic::coverage_to_diagnostics(&gaps));
                 }
                 Err(e) => {
                     warn!("coverage run failed for {rel}: {e}");
@@ -64,21 +69,25 @@ impl Pipeline {
                             "mutation results for {rel}: {} surviving mutants (filtered)",
                             filtered.len()
                         );
-
-                        let entry = ctl_core::diagnostic::DiagnosticEntry {
-                            file_path: file.clone(),
-                            diagnostics_json: serde_json::to_string(&filtered)?,
-                            timestamp: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
-                        };
-                        self.cache.write_entries(&[entry])?;
+                        all_diagnostics
+                            .extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
                     }
                     Err(e) => {
                         warn!("mutation run failed for {rel}: {e}");
                     }
                 }
+            }
+
+            if !all_diagnostics.is_empty() {
+                let entry = ctl_core::diagnostic::DiagnosticEntry {
+                    file_path: file.clone(),
+                    diagnostics_json: serde_json::to_string(&all_diagnostics)?,
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                };
+                self.cache.write_entries(&[entry])?;
             }
         }
 
@@ -93,6 +102,8 @@ impl Pipeline {
 
         self.matrix = Some(CoverageMatrix::from_gaps(&gaps));
 
+        let cov_diagnostics = ctl_core::diagnostic::coverage_to_diagnostics(&gaps);
+
         let report = r#mut::run(&self.project_root, None, None).await?;
         info!(
             "full mutation: {} total, {} survived, {} killed, {} timeout",
@@ -101,19 +112,29 @@ impl Pipeline {
 
         let matrix = self.matrix.as_ref().unwrap();
         let filtered = matrix.filter_mutant_targets(&report.mutants);
+        let mut_diagnostics = ctl_core::diagnostic::mutant_to_diagnostics(&filtered);
 
-        let entries: Vec<ctl_core::diagnostic::DiagnosticEntry> = filtered
-            .iter()
-            .map(|m| {
-                let path = PathBuf::from(&m.file_path);
-                ctl_core::diagnostic::DiagnosticEntry {
-                    file_path: path,
-                    diagnostics_json: serde_json::to_string(&vec![m]).unwrap_or_default(),
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                }
+        let mut all_diagnostics: Vec<_> = cov_diagnostics;
+        all_diagnostics.extend(mut_diagnostics);
+
+        let mut by_file: std::collections::HashMap<PathBuf, Vec<ctl_core::diagnostic::Diagnostic>> =
+            std::collections::HashMap::new();
+        for diag in &all_diagnostics {
+            for span in &diag.spans {
+                let path = PathBuf::from(&span.file_name);
+                by_file.entry(path).or_default().push(diag.clone());
+            }
+        }
+
+        let entries: Vec<ctl_core::diagnostic::DiagnosticEntry> = by_file
+            .into_iter()
+            .map(|(file_path, diags)| ctl_core::diagnostic::DiagnosticEntry {
+                file_path,
+                diagnostics_json: serde_json::to_string(&diags).unwrap_or_default(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
             })
             .collect();
 
@@ -124,6 +145,11 @@ impl Pipeline {
     }
 
     pub async fn serve(&mut self, socket_path: &Path) -> Result<()> {
+        info!("warming cache with initial full sweep");
+        if let Err(e) = self.run_full_sweep().await {
+            warn!("initial sweep failed: {e}");
+        }
+
         let server = IpcServer::bind(socket_path).await?;
         let mut watcher = FileWatcher::new(self.project_root.clone(), 500);
         let mut sweep_interval = tokio::time::interval(FULL_SWEEP_INTERVAL);

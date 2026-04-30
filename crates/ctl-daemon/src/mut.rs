@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use tokio::process::Command;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use ctl_core::mutation::MutationReport;
 
@@ -42,7 +42,7 @@ pub async fn run(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        warn!("cargo mutants exited with {}: {}", output.status, stderr);
+        bail!("cargo mutants exited with {}: {}", output.status, stderr);
     }
 
     let mutants_dir = project_root.join("mutants.out");

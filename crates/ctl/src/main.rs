@@ -14,7 +14,11 @@ use std::collections::HashMap;
 use tracing::debug;
 
 #[derive(Parser)]
-#[command(name = "cargo-test-lint", about = "rust-analyzer check.overrideCommand")]
+#[command(
+    name = "cargo-test-lint",
+    about = "rust-analyzer check.overrideCommand",
+    ignore_errors = true
+)]
 struct Cli {
     #[arg(long)]
     file: Option<String>,
