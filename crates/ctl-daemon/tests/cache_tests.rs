@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ctl_core::diagnostic::DiagnosticEntry;
 use ctl_daemon::cache::Cache;
@@ -49,7 +49,7 @@ fn invalidate_removes_matching_entries() {
 
     let read = cache.read_entries().unwrap();
     assert_eq!(read.len(), 2);
-    assert!(read.iter().all(|e| e.file_path != PathBuf::from("src/b.rs")));
+    assert!(read.iter().all(|e| e.file_path != Path::new("src/b.rs")));
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn upsert_multiple_entries() {
     let read = cache.read_entries().unwrap();
     assert_eq!(read.len(), 3);
 
-    let a = read.iter().find(|e| e.file_path == PathBuf::from("src/a.rs")).unwrap();
+    let a = read.iter().find(|e| e.file_path == Path::new("src/a.rs")).unwrap();
     assert_eq!(a.diagnostics_json, "1a");
 }
 
