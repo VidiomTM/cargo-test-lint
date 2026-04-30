@@ -11,7 +11,7 @@ use ctl_core::diagnostic::{
 };
 use serde::Serialize;
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::{info, warn};
 
 #[derive(Parser)]
 #[command(name = "cargo-test-lint", about = "rust-analyzer check.overrideCommand")]
@@ -143,27 +143,63 @@ async fn run() -> Result<()> {
         return run_daemon(&cli.project_root).await;
     }
 
+    let manifest = cli.project_root.join("Cargo.toml");
+    if !manifest.exists() {
+        anyhow::bail!(
+            "no Cargo.toml found in {}. Is this a Rust project?",
+            cli.project_root.display()
+        );
+    }
+
     let sock = daemon::socket_path(&cli.project_root);
 
     if !daemon::check_liveness(&sock).await {
-        debug!("daemon not alive, spawning");
-        daemon::spawn_daemon(&cli.project_root).await?;
+        info!("daemon not alive, spawning");
+        daemon::spawn_daemon(&cli.project_root).await.map_err(|e| {
+            anyhow::anyhow!(
+                "failed to spawn daemon: {e}\n  Check logs: {}/target/ctl-daemon.log",
+                cli.project_root.display()
+            )
+        })?;
 
+        let mut alive = false;
         for _ in 0..20 {
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             if daemon::check_liveness(&sock).await {
+                alive = true;
                 break;
             }
         }
+        if !alive {
+            anyhow::bail!(
+                "daemon did not start within 5s\n\
+                 - Check logs: {}/target/ctl-daemon.log\n\
+                 - Ensure 'cargo llvm-cov' and 'cargo mutants' are installed\n\
+                   cargo install cargo-llvm-cov cargo-mutants",
+                cli.project_root.display()
+            );
+        }
     }
 
-    let resp = daemon::nudge(&sock, cli.file.as_deref()).await?;
+    let resp = daemon::nudge(&sock, cli.file.as_deref()).await.map_err(|e| {
+        anyhow::anyhow!(
+            "failed to communicate with daemon: {e}\n\
+             - Is the daemon running? Check: {}/target/ctl-daemon.sock\n\
+             - Try removing stale socket: rm {}/target/ctl-daemon.sock",
+            cli.project_root.display(),
+            cli.project_root.display()
+        )
+    })?;
 
     let entries: Vec<DiagnosticEntry> = match serde_json::from_str(&resp.diagnostics) {
         Ok(e) => e,
         Err(e) => {
-            warn!("failed to deserialize IPC response entries: {e}");
-            Vec::new()
+            anyhow::bail!(
+                "daemon returned invalid JSON — is the project indexed?\n\
+                 Parse error: {e}\n\
+                 Raw response (first 200 chars): {:.200}",
+                resp.diagnostics
+            );
         }
     };
 
@@ -195,6 +231,16 @@ async fn run() -> Result<()> {
     for diag in &diagnostics {
         let msg = CompilerMessage::from_diagnostic(diag, &cli.project_root);
         println!("{}", serde_json::to_string(&msg)?);
+    }
+
+    if std::env::var("RUST_LOG").is_ok() {
+        let file_count = entries.len();
+        let finding_count = diagnostics.len();
+        if finding_count == 0 {
+            eprintln!("✓ 0 findings ({file_count} files checked)");
+        } else {
+            eprintln!("✗ {finding_count} findings across {file_count} files");
+        }
     }
 
     Ok(())
