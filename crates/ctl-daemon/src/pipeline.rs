@@ -36,7 +36,7 @@ impl Pipeline {
 
             info!("file-scoped pipeline for {rel}");
 
-            self.cache.invalidate(&[file.clone()]);
+            self.cache.invalidate(std::slice::from_ref(file));
 
             match cov::gaps(&self.project_root).await {
                 Ok(gaps) => {

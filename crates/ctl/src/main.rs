@@ -124,8 +124,8 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-async fn run_daemon(project_root: &PathBuf) -> Result<()> {
-    let mut pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.clone());
+async fn run_daemon(project_root: &std::path::Path) -> Result<()> {
+    let mut pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.to_path_buf());
     let sock = daemon::socket_path(project_root);
     pipeline.serve(&sock).await
 }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub coverage: CoverageConfig,
@@ -77,17 +77,6 @@ fn default_level() -> String {
     "warning".to_owned()
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            coverage: CoverageConfig::default(),
-            mutation: MutationConfig::default(),
-            daemon: DaemonConfig::default(),
-            output: OutputConfig::default(),
-        }
-    }
-}
-
 impl Default for CoverageConfig {
     fn default() -> Self {
         Self { enabled: true, timeout_secs: 300, extra_args: Vec::new() }
@@ -113,16 +102,11 @@ impl Default for OutputConfig {
 }
 
 pub fn load(project_root: &Path) -> Config {
-    let from_ctl_toml = try_load_ctl_toml(project_root);
-    let from_cargo_toml = try_load_cargo_toml(project_root);
-
-    let base = match (from_ctl_toml, from_cargo_toml) {
+    match (try_load_ctl_toml(project_root), try_load_cargo_toml(project_root)) {
         (Some(c), _) => c,
         (None, Some(c)) => c,
         (None, None) => Config::default(),
-    };
-
-    base
+    }
 }
 
 fn try_load_ctl_toml(project_root: &Path) -> Option<Config> {
