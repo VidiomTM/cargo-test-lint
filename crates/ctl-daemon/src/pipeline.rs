@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::{mpsc, Mutex, Semaphore};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -244,17 +244,79 @@ impl Pipeline {
         let pipeline = Arc::new(self);
         let run_gate = Arc::new(Semaphore::new(1));
 
-        let pipeline_clone = Arc::clone(&pipeline);
-        let gate = Arc::clone(&run_gate);
+        // Channel for sending work notifications to the background worker
+        enum WorkItem {
+            FileScoped(Vec<PathBuf>),
+            FullSweep,
+        }
+
+        let (work_tx, mut work_rx) = mpsc::unbounded_channel::<WorkItem>();
+
+        // Spawn a single background worker task that processes coalesced work items
+        let pipeline_worker = Arc::clone(&pipeline);
+        let gate_worker = Arc::clone(&run_gate);
         tokio::spawn(async move {
-            let Ok(_permit) = gate.acquire_owned().await else {
-                return;
-            };
-            info!("warming cache with initial full sweep");
-            if let Err(e) = pipeline_clone.run_full_sweep().await {
-                warn!("initial sweep failed: {e}");
+            let mut pending_files: Vec<PathBuf> = Vec::new();
+            let mut pending_full_sweep = false;
+
+            loop {
+                // Collect all available work items without blocking
+                let first_item = work_rx.recv().await;
+                if first_item.is_none() {
+                    break; // Channel closed
+                }
+
+                // Merge the first item
+                match first_item.unwrap() {
+                    WorkItem::FileScoped(files) => {
+                        pending_files.extend(files);
+                    }
+                    WorkItem::FullSweep => {
+                        pending_full_sweep = true;
+                    }
+                }
+
+                // Coalesce any additional queued items
+                while let Ok(item) = work_rx.try_recv() {
+                    match item {
+                        WorkItem::FileScoped(files) => {
+                            pending_files.extend(files);
+                        }
+                        WorkItem::FullSweep => {
+                            pending_full_sweep = true;
+                        }
+                    }
+                }
+
+                // Deduplicate files
+                pending_files.sort();
+                pending_files.dedup();
+
+                // Acquire the permit and process work
+                let Ok(_permit) = gate_worker.clone().acquire_owned().await else {
+                    break;
+                };
+
+                if pending_full_sweep {
+                    // Full sweep takes precedence and covers all file work
+                    info!("processing full sweep (coalesced)");
+                    if let Err(e) = pipeline_worker.run_full_sweep().await {
+                        error!("full sweep error: {e}");
+                    }
+                    pending_full_sweep = false;
+                    pending_files.clear();
+                } else if !pending_files.is_empty() {
+                    info!("processing file-scoped work for {} files (coalesced)", pending_files.len());
+                    if let Err(e) = pipeline_worker.run_file_scoped(&pending_files).await {
+                        error!("file-scoped pipeline error: {e}");
+                    }
+                    pending_files.clear();
+                }
             }
         });
+
+        // Send initial full sweep to the worker
+        let _ = work_tx.send(WorkItem::FullSweep);
 
         let mut watcher = FileWatcher::new(pipeline.project_root.clone(), 500);
         let mut sweep_interval = tokio::time::interval(FULL_SWEEP_INTERVAL);
@@ -263,32 +325,20 @@ impl Pipeline {
         loop {
             tokio::select! {
                 changed = watcher.changed_files() => {
-                    let pipeline = Arc::clone(&pipeline);
-                    let gate = Arc::clone(&run_gate);
-                    tokio::spawn(async move {
-                        let Ok(_permit) = gate.acquire_owned().await else { return; };
-                        match changed {
-                            Ok(files) => {
-                                if let Err(e) = pipeline.run_file_scoped(&files).await {
-                                    error!("file-scoped pipeline error: {e}");
-                                }
-                            }
-                            Err(e) => {
-                                error!("watcher error: {e}");
-                            }
+                    match changed {
+                        Ok(files) => {
+                            // Send lightweight notification to worker instead of spawning a task
+                            let _ = work_tx.send(WorkItem::FileScoped(files));
                         }
-                    });
+                        Err(e) => {
+                            error!("watcher error: {e}");
+                        }
+                    }
                 }
 
                 _ = sweep_interval.tick() => {
-                    let pipeline = Arc::clone(&pipeline);
-                    let gate = Arc::clone(&run_gate);
-                    tokio::spawn(async move {
-                        let Ok(_permit) = gate.acquire_owned().await else { return; };
-                        if let Err(e) = pipeline.run_full_sweep().await {
-                            error!("full sweep error: {e}");
-                        }
-                    });
+                    // Send lightweight notification to worker instead of spawning a task
+                    let _ = work_tx.send(WorkItem::FullSweep);
                 }
 
                 client = server.accept() => {
