@@ -6,25 +6,104 @@ use tracing::{error, info, warn};
 
 use crate::{
     cache::Cache,
-    cov,
     ipc::{IpcResponse, IpcServer},
     matrix::CoverageMatrix,
-    r#mut,
     watch::FileWatcher,
 };
 
 const FULL_SWEEP_INTERVAL: Duration = Duration::from_secs(300);
 
+pub trait CovRunner: Send + Sync {
+    fn gaps(
+        &self,
+        project_root: &Path,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Vec<ctl_core::coverage::CoverageGap>>> + Send>,
+    >;
+}
+
+pub trait MutRunner: Send + Sync {
+    fn run(
+        &self,
+        project_root: &Path,
+        file_filter: Option<&str>,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<ctl_core::mutation::MutationReport>> + Send>,
+    >;
+}
+
+pub struct ProductionCovRunner;
+
+impl CovRunner for ProductionCovRunner {
+    fn gaps(
+        &self,
+        project_root: &Path,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Vec<ctl_core::coverage::CoverageGap>>> + Send>,
+    > {
+        let root = project_root.to_path_buf();
+        Box::pin(async move { crate::cov::gaps(&root).await })
+    }
+}
+
+pub struct ProductionMutRunner;
+
+impl MutRunner for ProductionMutRunner {
+    fn run(
+        &self,
+        project_root: &Path,
+        file_filter: Option<&str>,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<ctl_core::mutation::MutationReport>> + Send>,
+    > {
+        let root = project_root.to_path_buf();
+        let file = file_filter.map(String::from);
+        Box::pin(async move { crate::r#mut::run(&root, file.as_deref(), None).await })
+    }
+}
+
+type BoxedCovRunner = Box<dyn CovRunner>;
+type BoxedMutRunner = Box<dyn MutRunner>;
+
 pub struct Pipeline {
     project_root: PathBuf,
     cache: Cache,
     matrix: Option<CoverageMatrix>,
+    cov_runner: BoxedCovRunner,
+    mut_runner: BoxedMutRunner,
 }
 
 impl Pipeline {
     pub fn new(project_root: PathBuf) -> Self {
-        let cache = Cache::new(&project_root);
-        Self { project_root, cache, matrix: None }
+        Self {
+            project_root: project_root.clone(),
+            cache: Cache::new(&project_root),
+            matrix: None,
+            cov_runner: Box::new(ProductionCovRunner),
+            mut_runner: Box::new(ProductionMutRunner),
+        }
+    }
+
+    pub fn new_with_runners(
+        project_root: PathBuf,
+        cov_runner: impl CovRunner + 'static,
+        mut_runner: impl MutRunner + 'static,
+    ) -> Self {
+        Self {
+            project_root: project_root.clone(),
+            cache: Cache::new(&project_root),
+            matrix: None,
+            cov_runner: Box::new(cov_runner),
+            mut_runner: Box::new(mut_runner),
+        }
+    }
+
+    pub fn set_cov_runner(&mut self, runner: impl CovRunner + 'static) {
+        self.cov_runner = Box::new(runner);
+    }
+
+    pub fn set_mut_runner(&mut self, runner: impl MutRunner + 'static) {
+        self.mut_runner = Box::new(runner);
     }
 
     pub async fn run_file_scoped(&mut self, changed_files: &[PathBuf]) -> Result<()> {
@@ -40,14 +119,15 @@ impl Pipeline {
 
             let mut all_diagnostics = Vec::new();
 
-            match cov::gaps(&self.project_root).await {
+            match self.cov_runner.gaps(&self.project_root).await {
                 Ok(gaps) => {
                     let file_gaps: Vec<_> = gaps
                         .iter()
                         .filter(|g| {
-                            PathBuf::from(&g.file_path)
-                                .strip_prefix(&self.project_root)
-                                .is_ok_and(|p| p == file.as_path() || file.ends_with(p))
+                            let gap_path = PathBuf::from(&g.file_path);
+                            let stripped = gap_path.strip_prefix(&self.project_root);
+                            let rel = stripped.unwrap_or(&gap_path);
+                            rel == file.as_path() || file.ends_with(rel)
                         })
                         .cloned()
                         .collect();
@@ -70,7 +150,7 @@ impl Pipeline {
             }
 
             if let Some(ref matrix) = self.matrix {
-                match r#mut::run(&self.project_root, Some(&rel), None).await {
+                match self.mut_runner.run(&self.project_root, Some(&rel)).await {
                     Ok(report) => {
                         let filtered = matrix.filter_mutant_targets(&report.mutants);
                         info!(
@@ -107,14 +187,14 @@ impl Pipeline {
     pub async fn run_full_sweep(&mut self) -> Result<()> {
         info!("starting full sweep for {}", self.project_root.display());
 
-        let gaps = cov::gaps(&self.project_root).await?;
+        let gaps = self.cov_runner.gaps(&self.project_root).await?;
         info!("full coverage: {} gaps found", gaps.len());
 
         self.matrix = Some(CoverageMatrix::from_gaps(&gaps));
 
         let cov_diagnostics = ctl_core::diagnostic::coverage_to_diagnostics(&gaps);
 
-        let report = r#mut::run(&self.project_root, None, None).await?;
+        let report = self.mut_runner.run(&self.project_root, None).await?;
         info!(
             "full mutation: {} total, {} survived, {} killed, {} timeout",
             report.total, report.survived, report.killed, report.timeout

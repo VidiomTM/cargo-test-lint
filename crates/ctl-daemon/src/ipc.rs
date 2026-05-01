@@ -22,6 +22,9 @@ pub struct IpcServer {
 #[cfg(unix)]
 impl IpcServer {
     pub async fn bind(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         if path.exists() {
             tokio::fs::remove_file(path).await?;
         }
@@ -42,11 +45,36 @@ pub struct IpcClient {
 
 #[cfg(unix)]
 impl IpcClient {
+    pub async fn connect_and_request(
+        socket_path: &Path,
+        file: Option<&str>,
+    ) -> Result<IpcResponse> {
+        let stream = tokio::net::UnixStream::connect(socket_path).await?;
+        let (reader, mut writer) = stream.into_split();
+        let req = IpcRequest { file: file.map(String::from) };
+        let json = serde_json::to_string(&req)?;
+        writer.write_all(json.as_bytes()).await?;
+        writer.write_u8(b'\n').await?;
+        writer.flush().await?;
+
+        let mut reader = BufReader::new(reader);
+        let mut line = String::new();
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a response");
+        }
+        let resp: IpcResponse = serde_json::from_str(line.trim())?;
+        Ok(resp)
+    }
+
     pub async fn read_request(&mut self) -> Result<IpcRequest> {
         let (reader, _) = self.stream.split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a request");
+        }
         let req: IpcRequest = serde_json::from_str(line.trim())?;
         Ok(req)
     }
@@ -59,6 +87,18 @@ impl IpcClient {
         writer.write_u8(b'\n').await?;
         writer.flush().await?;
         Ok(())
+    }
+
+    pub async fn read_response(&mut self) -> Result<IpcResponse> {
+        let (reader, _) = self.stream.split();
+        let mut reader = BufReader::new(reader);
+        let mut line = String::new();
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a response");
+        }
+        let resp: IpcResponse = serde_json::from_str(line.trim())?;
+        Ok(resp)
     }
 }
 

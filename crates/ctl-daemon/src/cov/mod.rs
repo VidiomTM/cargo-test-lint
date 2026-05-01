@@ -1,4 +1,4 @@
-mod cov_parse;
+pub mod cov_parse;
 
 use std::path::Path;
 use std::time::Duration;
@@ -7,7 +7,7 @@ use anyhow::{Context, bail};
 use ctl_core::coverage::{CoverageGap, CoverageReport};
 use tokio::process::Command;
 
-pub use cov_parse::extract_gaps;
+pub use cov_parse::{extract_gaps, parse_llvm_cov_json};
 
 const COV_TIMEOUT: Duration = Duration::from_secs(300);
 

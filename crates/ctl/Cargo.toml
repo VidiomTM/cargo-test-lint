@@ -6,6 +6,10 @@ license.workspace = true
 rust-version.workspace = true
 description = "CLI binary for cargo-test-lint (rust-analyzer check.overrideCommand)"
 
+[lib]
+name = "ctl"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cargo-test-lint"
 path = "src/main.rs"
@@ -20,3 +24,6 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
