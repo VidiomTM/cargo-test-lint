@@ -4,7 +4,6 @@ use anyhow::Context;
 use ctl_core::coverage::{CoverageFile, CoverageGap, CoverageReport, CoverageSummary};
 use serde::Deserialize;
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct LlvmCovExport {
     data: Vec<LlvmCovData>,
@@ -15,24 +14,76 @@ struct LlvmCovData {
     files: Vec<LlvmCovFileEntry>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct LlvmCovFileEntry {
     filename: String,
+    #[serde(deserialize_with = "deserialize_segments")]
     segments: Vec<LlvmCovSegment>,
     summary: Option<LlvmCovFileSummary>,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct LlvmCovSegment {
     line: u64,
     col: u64,
     count: u64,
-    #[serde(default)]
     has_count: bool,
-    #[serde(default)]
-    region: Option<u64>,
+    is_region_entry: bool,
+    is_gap: bool,
+}
+
+fn deserialize_segments<'de, D>(deserializer: D) -> Result<Vec<LlvmCovSegment>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{SeqAccess, Visitor};
+
+    struct SegmentVisitor;
+
+    impl<'de> Visitor<'de> for SegmentVisitor {
+        type Value = Vec<LlvmCovSegment>;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a sequence of segment arrays")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut segments = Vec::new();
+            while let Some(arr) = seq.next_element::<serde_json::Value>()? {
+                let arr = arr
+                    .as_array()
+                    .ok_or_else(|| serde::de::Error::custom("segment must be an array"))?;
+                let line = arr.first().and_then(|v| v.as_u64()).ok_or_else(|| {
+                    serde::de::Error::custom("segment[0] (line) missing or not u64")
+                })?;
+                let col = arr.get(1).and_then(|v| v.as_u64()).ok_or_else(|| {
+                    serde::de::Error::custom("segment[1] (col) missing or not u64")
+                })?;
+                let count = arr.get(2).and_then(|v| v.as_u64()).ok_or_else(|| {
+                    serde::de::Error::custom("segment[2] (count) missing or not u64")
+                })?;
+                let has_count = arr.get(3).and_then(|v| v.as_bool()).ok_or_else(|| {
+                    serde::de::Error::custom("segment[3] (has_count) missing or not bool")
+                })?;
+                let is_region_entry = arr.get(4).and_then(|v| v.as_bool()).unwrap_or(false);
+                let is_gap = arr.get(5).and_then(|v| v.as_bool()).unwrap_or(false);
+                segments.push(LlvmCovSegment {
+                    line,
+                    col,
+                    count,
+                    has_count,
+                    is_region_entry,
+                    is_gap,
+                });
+            }
+            Ok(segments)
+        }
+    }
+
+    deserializer.deserialize_seq(SegmentVisitor)
 }
 
 #[allow(dead_code)]
@@ -106,14 +157,14 @@ pub fn extract_gaps(raw: &str) -> anyhow::Result<Vec<CoverageGap>> {
     for data_entry in &export.data {
         for file_entry in &data_entry.files {
             for seg in &file_entry.segments {
-                if seg.has_count && seg.count == 0 {
+                if seg.has_count && seg.count == 0 && !seg.is_gap {
                     gaps.push(CoverageGap {
                         file_path: file_entry.filename.clone(),
                         line: seg.line as u32,
                         column_start: Some(seg.col as u32),
                         column_end: None,
                         count: seg.count,
-                        is_branch: seg.region.is_some(),
+                        is_branch: seg.is_region_entry,
                     });
                 }
             }

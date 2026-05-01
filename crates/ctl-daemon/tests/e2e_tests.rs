@@ -101,7 +101,7 @@ async fn pipeline_file_scoped_caches_diagnostics() {
         timeout: 0,
     };
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: cov_gaps },
         MockMutRunner { report: mut_report },
@@ -145,7 +145,7 @@ async fn pipeline_full_sweep_caches_diagnostics() {
         timeout: 0,
     };
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: cov_gaps },
         MockMutRunner { report: mut_report },
@@ -178,7 +178,7 @@ async fn pipeline_file_scoped_cleans_cache_when_clean() {
         .unwrap();
     assert_eq!(cache.read_entries().unwrap().len(), 1);
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: vec![] },
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -206,7 +206,7 @@ async fn pipeline_serve_ipc_round_trip() {
         is_branch: false,
     }];
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: cov_gaps },
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -378,7 +378,7 @@ async fn pipeline_file_scoped_skips_non_rs_files() {
         is_branch: false,
     }];
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: cov_gaps },
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -416,7 +416,7 @@ async fn pipeline_full_sweep_groups_by_file() {
         },
     ];
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: cov_gaps },
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -450,7 +450,7 @@ async fn pipeline_cov_failure_falls_back_gracefully() {
         }
     }
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         FailCovRunner,
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -494,7 +494,7 @@ async fn pipeline_cov_failure_in_file_scoped_invalidates_cache() {
         }
     }
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         FailCovRunner,
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
@@ -538,7 +538,7 @@ async fn pipeline_mut_failure_in_full_sweep_still_caches_coverage() {
         is_branch: false,
     }];
 
-    let mut pipeline =
+    let pipeline =
         Pipeline::new_with_runners(root.clone(), MockCovRunner { gaps: cov_gaps }, FailMutRunner);
 
     let result = pipeline.run_full_sweep().await;
@@ -593,7 +593,7 @@ async fn pipeline_full_sweep_with_empty_gaps_and_mutants() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().to_path_buf();
 
-    let mut pipeline = Pipeline::new_with_runners(
+    let pipeline = Pipeline::new_with_runners(
         root.clone(),
         MockCovRunner { gaps: vec![] },
         MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },

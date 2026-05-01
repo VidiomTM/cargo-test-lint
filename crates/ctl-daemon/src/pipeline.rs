@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 use crate::{
@@ -62,25 +64,25 @@ impl MutRunner for ProductionMutRunner {
     }
 }
 
-type BoxedCovRunner = Box<dyn CovRunner>;
-type BoxedMutRunner = Box<dyn MutRunner>;
+type ArcCovRunner = Arc<dyn CovRunner>;
+type ArcMutRunner = Arc<dyn MutRunner>;
 
 pub struct Pipeline {
     project_root: PathBuf,
-    cache: Cache,
-    matrix: Option<CoverageMatrix>,
-    cov_runner: BoxedCovRunner,
-    mut_runner: BoxedMutRunner,
+    cache: Arc<Cache>,
+    matrix: Arc<Mutex<Option<CoverageMatrix>>>,
+    cov_runner: ArcCovRunner,
+    mut_runner: ArcMutRunner,
 }
 
 impl Pipeline {
     pub fn new(project_root: PathBuf) -> Self {
         Self {
+            cache: Arc::new(Cache::new(&project_root)),
             project_root: project_root.clone(),
-            cache: Cache::new(&project_root),
-            matrix: None,
-            cov_runner: Box::new(ProductionCovRunner),
-            mut_runner: Box::new(ProductionMutRunner),
+            matrix: Arc::new(Mutex::new(None)),
+            cov_runner: Arc::new(ProductionCovRunner),
+            mut_runner: Arc::new(ProductionMutRunner),
         }
     }
 
@@ -90,23 +92,23 @@ impl Pipeline {
         mut_runner: impl MutRunner + 'static,
     ) -> Self {
         Self {
+            cache: Arc::new(Cache::new(&project_root)),
             project_root: project_root.clone(),
-            cache: Cache::new(&project_root),
-            matrix: None,
-            cov_runner: Box::new(cov_runner),
-            mut_runner: Box::new(mut_runner),
+            matrix: Arc::new(Mutex::new(None)),
+            cov_runner: Arc::new(cov_runner),
+            mut_runner: Arc::new(mut_runner),
         }
     }
 
     pub fn set_cov_runner(&mut self, runner: impl CovRunner + 'static) {
-        self.cov_runner = Box::new(runner);
+        self.cov_runner = Arc::new(runner);
     }
 
     pub fn set_mut_runner(&mut self, runner: impl MutRunner + 'static) {
-        self.mut_runner = Box::new(runner);
+        self.mut_runner = Arc::new(runner);
     }
 
-    pub async fn run_file_scoped(&mut self, changed_files: &[PathBuf]) -> Result<()> {
+    pub async fn run_file_scoped(&self, changed_files: &[PathBuf]) -> Result<()> {
         for file in changed_files {
             if file.extension().is_none_or(|ext| ext != "rs") {
                 continue;
@@ -132,15 +134,17 @@ impl Pipeline {
                         .cloned()
                         .collect();
                     let file_matrix = CoverageMatrix::from_gaps(&gaps);
-                    match self.matrix.as_mut() {
+                    let mut matrix = self.matrix.lock().await;
+                    match matrix.as_mut() {
                         Some(m) => {
                             m.remove_file(file);
                             m.merge(file_matrix);
                         }
                         None => {
-                            self.matrix = Some(file_matrix);
+                            *matrix = Some(file_matrix);
                         }
                     }
+                    drop(matrix);
                     all_diagnostics
                         .extend(ctl_core::diagnostic::coverage_to_diagnostics(&file_gaps));
                 }
@@ -149,7 +153,8 @@ impl Pipeline {
                 }
             }
 
-            if let Some(ref matrix) = self.matrix {
+            let matrix = self.matrix.lock().await;
+            if let Some(ref matrix) = *matrix {
                 match self.mut_runner.run(&self.project_root, Some(&rel)).await {
                     Ok(report) => {
                         let filtered = matrix.filter_mutant_targets(&report.mutants);
@@ -165,6 +170,7 @@ impl Pipeline {
                     }
                 }
             }
+            drop(matrix);
 
             if !all_diagnostics.is_empty() {
                 let entry = ctl_core::diagnostic::DiagnosticEntry {
@@ -184,15 +190,17 @@ impl Pipeline {
         Ok(())
     }
 
-    pub async fn run_full_sweep(&mut self) -> Result<()> {
+    pub async fn run_full_sweep(&self) -> Result<()> {
         info!("starting full sweep for {}", self.project_root.display());
 
         let gaps = self.cov_runner.gaps(&self.project_root).await?;
         info!("full coverage: {} gaps found", gaps.len());
 
-        self.matrix = Some(CoverageMatrix::from_gaps(&gaps));
-
         let cov_diagnostics = ctl_core::diagnostic::coverage_to_diagnostics(&gaps);
+
+        let mut matrix = self.matrix.lock().await;
+        *matrix = Some(CoverageMatrix::from_gaps(&gaps));
+        drop(matrix);
 
         let report = self.mut_runner.run(&self.project_root, None).await?;
         info!(
@@ -200,8 +208,9 @@ impl Pipeline {
             report.total, report.survived, report.killed, report.timeout
         );
 
-        let matrix = self.matrix.as_ref().unwrap();
-        let filtered = matrix.filter_mutant_targets(&report.mutants);
+        let matrix = self.matrix.lock().await;
+        let filtered = matrix.as_ref().unwrap().filter_mutant_targets(&report.mutants);
+        drop(matrix);
         let mut_diagnostics = ctl_core::diagnostic::mutant_to_diagnostics(&filtered);
 
         let mut all_diagnostics: Vec<_> = cov_diagnostics;
@@ -234,45 +243,58 @@ impl Pipeline {
         Ok(())
     }
 
-    pub async fn serve(&mut self, socket_path: &Path) -> Result<()> {
+    pub async fn serve(self, socket_path: &Path) -> Result<()> {
         let server = IpcServer::bind(socket_path).await?;
         info!("daemon listening on {}", socket_path.display());
 
-        info!("warming cache with initial full sweep");
-        if let Err(e) = self.run_full_sweep().await {
-            warn!("initial sweep failed: {e}");
-        }
+        let cache = Arc::clone(&self.cache);
+        let pipeline = Arc::new(self);
 
-        let mut watcher = FileWatcher::new(self.project_root.clone(), 500);
+        let pipeline_clone = Arc::clone(&pipeline);
+        tokio::spawn(async move {
+            info!("warming cache with initial full sweep");
+            if let Err(e) = pipeline_clone.run_full_sweep().await {
+                warn!("initial sweep failed: {e}");
+            }
+        });
+
+        let mut watcher = FileWatcher::new(pipeline.project_root.clone(), 500);
         let mut sweep_interval = tokio::time::interval(FULL_SWEEP_INTERVAL);
         sweep_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
             tokio::select! {
                 changed = watcher.changed_files() => {
-                    match changed {
-                        Ok(files) => {
-                            if let Err(e) = self.run_file_scoped(&files).await {
-                                error!("file-scoped pipeline error: {e}");
+                    let pipeline = Arc::clone(&pipeline);
+                    tokio::spawn(async move {
+                        match changed {
+                            Ok(files) => {
+                                if let Err(e) = pipeline.run_file_scoped(&files).await {
+                                    error!("file-scoped pipeline error: {e}");
+                                }
+                            }
+                            Err(e) => {
+                                error!("watcher error: {e}");
                             }
                         }
-                        Err(e) => {
-                            error!("watcher error: {e}");
-                        }
-                    }
+                    });
                 }
 
                 _ = sweep_interval.tick() => {
-                    if let Err(e) = self.run_full_sweep().await {
-                        error!("full sweep error: {e}");
-                    }
+                    let pipeline = Arc::clone(&pipeline);
+                    tokio::spawn(async move {
+                        if let Err(e) = pipeline.run_full_sweep().await {
+                            error!("full sweep error: {e}");
+                        }
+                    });
                 }
 
                 client = server.accept() => {
+                    let cache = Arc::clone(&cache);
                     let mut client = client?;
                     match client.read_request().await {
                         Ok(req) => {
-                            let entries = self.cache.read_entries().unwrap_or_default();
+                            let entries = cache.read_entries().unwrap_or_default();
                             let filtered: Vec<_> = match req.file {
                                 Some(ref f) => {
                                     entries.into_iter().filter(|e| {
@@ -292,6 +314,18 @@ impl Pipeline {
                     }
                 }
             }
+        }
+    }
+}
+
+impl Clone for Pipeline {
+    fn clone(&self) -> Self {
+        Self {
+            project_root: self.project_root.clone(),
+            cache: Arc::clone(&self.cache),
+            matrix: Arc::clone(&self.matrix),
+            cov_runner: Arc::clone(&self.cov_runner),
+            mut_runner: Arc::clone(&self.mut_runner),
         }
     }
 }
