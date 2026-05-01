@@ -13,6 +13,12 @@ pub async fn check_liveness(socket_path: &Path) -> bool {
     tokio::net::UnixStream::connect(socket_path).await.is_ok()
 }
 
+pub async fn check_ready(socket_path: &Path) -> bool {
+    tokio::time::timeout(std::time::Duration::from_secs(1), nudge(socket_path, None))
+        .await
+        .is_ok_and(|res| res.is_ok())
+}
+
 pub async fn spawn_daemon(project_root: &Path) -> Result<()> {
     let target_dir = project_root.join("target");
     tokio::fs::create_dir_all(&target_dir).await?;
