@@ -363,3 +363,267 @@ fn summary_format_with_findings() {
     let msg = format!("\u{2717} {finding_count} findings across {file_count} files");
     assert_eq!(msg, "\u{2717} 7 findings across 3 files");
 }
+
+#[tokio::test]
+async fn pipeline_file_scoped_skips_non_rs_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let cov_gaps = vec![ctl_core::coverage::CoverageGap {
+        file_path: "src/lib.rs".into(),
+        line: 3,
+        column_start: Some(1),
+        column_end: None,
+        count: 0,
+        is_branch: false,
+    }];
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        MockCovRunner { gaps: cov_gaps },
+        MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
+    );
+
+    let changed = vec![root.join("src").join("lib.txt")];
+    pipeline.run_file_scoped(&changed).await.unwrap();
+
+    let cache = Cache::new(&root);
+    let entries = cache.read_entries().unwrap();
+    assert!(entries.is_empty(), "non-rs files should be skipped");
+}
+
+#[tokio::test]
+async fn pipeline_full_sweep_groups_by_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let cov_gaps = vec![
+        ctl_core::coverage::CoverageGap {
+            file_path: "src/a.rs".into(),
+            line: 1,
+            column_start: Some(1),
+            column_end: None,
+            count: 0,
+            is_branch: false,
+        },
+        ctl_core::coverage::CoverageGap {
+            file_path: "src/b.rs".into(),
+            line: 5,
+            column_start: Some(1),
+            column_end: None,
+            count: 0,
+            is_branch: false,
+        },
+    ];
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        MockCovRunner { gaps: cov_gaps },
+        MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
+    );
+
+    pipeline.run_full_sweep().await.unwrap();
+
+    let cache = Cache::new(&root);
+    let entries = cache.read_entries().unwrap();
+    assert_eq!(entries.len(), 2, "full sweep should create one entry per file with gaps");
+}
+
+#[tokio::test]
+async fn pipeline_cov_failure_falls_back_gracefully() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    struct FailCovRunner;
+    impl CovRunner for FailCovRunner {
+        fn gaps(
+            &self,
+            _project_root: &Path,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = anyhow::Result<Vec<ctl_core::coverage::CoverageGap>>,
+                    > + Send,
+            >,
+        > {
+            Box::pin(async { Err(anyhow::anyhow!("coverage failed")) })
+        }
+    }
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        FailCovRunner,
+        MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
+    );
+
+    let changed = vec![root.join("src").join("lib.rs")];
+    pipeline.run_file_scoped(&changed).await.unwrap();
+
+    let cache = Cache::new(&root);
+    let entries = cache.read_entries().unwrap();
+    assert!(entries.is_empty(), "no entries when cov fails and no matrix available");
+}
+
+#[tokio::test]
+async fn pipeline_cov_failure_in_file_scoped_invalidates_cache() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let cache = Cache::new(&root);
+    cache
+        .write_entries(&[ctl_core::diagnostic::DiagnosticEntry {
+            file_path: root.join("src").join("lib.rs"),
+            diagnostics_json: "[{}]".into(),
+            timestamp: 1,
+        }])
+        .unwrap();
+
+    struct FailCovRunner;
+    impl CovRunner for FailCovRunner {
+        fn gaps(
+            &self,
+            _project_root: &Path,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = anyhow::Result<Vec<ctl_core::coverage::CoverageGap>>,
+                    > + Send,
+            >,
+        > {
+            Box::pin(async { Err(anyhow::anyhow!("coverage failed")) })
+        }
+    }
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        FailCovRunner,
+        MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
+    );
+
+    let changed = vec![root.join("src").join("lib.rs")];
+    pipeline.run_file_scoped(&changed).await.unwrap();
+
+    let entries = cache.read_entries().unwrap();
+    assert!(entries.is_empty(), "existing entry should be invalidated when file has no findings");
+}
+
+struct FailMutRunner;
+
+impl MutRunner for FailMutRunner {
+    fn run(
+        &self,
+        _project_root: &Path,
+        _file_filter: Option<&str>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = anyhow::Result<ctl_core::mutation::MutationReport>>
+                + Send,
+        >,
+    > {
+        Box::pin(async { Err(anyhow::anyhow!("mutation failed")) })
+    }
+}
+
+#[tokio::test]
+async fn pipeline_mut_failure_in_full_sweep_still_caches_coverage() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let cov_gaps = vec![ctl_core::coverage::CoverageGap {
+        file_path: "src/lib.rs".into(),
+        line: 3,
+        column_start: Some(1),
+        column_end: None,
+        count: 0,
+        is_branch: false,
+    }];
+
+    let mut pipeline =
+        Pipeline::new_with_runners(root.clone(), MockCovRunner { gaps: cov_gaps }, FailMutRunner);
+
+    let result = pipeline.run_full_sweep().await;
+    assert!(result.is_err(), "full sweep should error when mutations fail");
+}
+
+#[tokio::test]
+async fn pipeline_file_scoped_with_matrix_from_prior_sweep() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let cov_gaps_first = vec![ctl_core::coverage::CoverageGap {
+        file_path: "src/lib.rs".into(),
+        line: 3,
+        column_start: Some(1),
+        column_end: None,
+        count: 0,
+        is_branch: false,
+    }];
+
+    let mut_report_empty = ctl_core::mutation::MutationReport::empty();
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        MockCovRunner { gaps: cov_gaps_first.clone() },
+        MockMutRunner { report: mut_report_empty },
+    );
+
+    pipeline.run_full_sweep().await.unwrap();
+
+    let cov_gaps_second = vec![ctl_core::coverage::CoverageGap {
+        file_path: "src/main.rs".into(),
+        line: 10,
+        column_start: Some(1),
+        column_end: None,
+        count: 0,
+        is_branch: true,
+    }];
+
+    pipeline.set_cov_runner(MockCovRunner { gaps: cov_gaps_second.clone() });
+
+    let changed = vec![PathBuf::from("src/main.rs")];
+    pipeline.run_file_scoped(&changed).await.unwrap();
+
+    let cache = Cache::new(&root);
+    let entries = cache.read_entries().unwrap();
+    assert!(!entries.is_empty(), "should have entries after file-scoped run");
+}
+
+#[tokio::test]
+async fn pipeline_full_sweep_with_empty_gaps_and_mutants() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let mut pipeline = Pipeline::new_with_runners(
+        root.clone(),
+        MockCovRunner { gaps: vec![] },
+        MockMutRunner { report: ctl_core::mutation::MutationReport::empty() },
+    );
+
+    pipeline.run_full_sweep().await.unwrap();
+
+    let cache = Cache::new(&root);
+    let entries = cache.read_entries().unwrap();
+    assert!(entries.is_empty(), "no gaps and no mutants means no cache entries");
+}
+
+#[tokio::test]
+async fn ipc_client_connect_and_request_with_file_filter() {
+    let tmp = tempfile::tempdir().unwrap();
+    let sock = tmp.path().join("filter_e2e.sock");
+
+    let server = IpcServer::bind(&sock).await.unwrap();
+    let handle = tokio::spawn(async move {
+        let mut client = server.accept().await.unwrap();
+        let req = client.read_request().await.unwrap();
+        assert_eq!(req.file, Some("lib.rs".into()));
+        let resp = IpcResponse { diagnostics: "filtered".into() };
+        client.send_response(&resp).await.unwrap();
+    });
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    let resp =
+        ctl_daemon::ipc::IpcClient::connect_and_request(&sock, Some("lib.rs")).await.unwrap();
+    assert_eq!(resp.diagnostics, "filtered");
+    handle.await.unwrap();
+}

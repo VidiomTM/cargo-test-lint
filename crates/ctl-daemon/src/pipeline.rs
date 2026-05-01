@@ -98,6 +98,14 @@ impl Pipeline {
         }
     }
 
+    pub fn set_cov_runner(&mut self, runner: impl CovRunner + 'static) {
+        self.cov_runner = Box::new(runner);
+    }
+
+    pub fn set_mut_runner(&mut self, runner: impl MutRunner + 'static) {
+        self.mut_runner = Box::new(runner);
+    }
+
     pub async fn run_file_scoped(&mut self, changed_files: &[PathBuf]) -> Result<()> {
         for file in changed_files {
             if file.extension().is_none_or(|ext| ext != "rs") {

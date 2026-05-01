@@ -1,11 +1,10 @@
-mod daemon;
-
-use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::Result;
 use clap::Parser;
+use ctl::daemon;
+use ctl::output::{format_summary, should_print_summary};
 use ctl_core::diagnostic::{
     Diagnostic, DiagnosticCode, DiagnosticEntry, DiagnosticLevel, DiagnosticSpan,
     resolve_byte_offsets,
@@ -234,15 +233,8 @@ async fn run() -> Result<()> {
         println!("{}", serde_json::to_string(&msg)?);
     }
 
-    let interactive = std::io::stdout().is_terminal() || std::env::var("RUST_LOG").is_ok();
-    if interactive {
-        let file_count = entries.len();
-        let finding_count = diagnostics.len();
-        if finding_count == 0 {
-            eprintln!("✓ 0 findings ({file_count} files checked)");
-        } else {
-            eprintln!("✗ {finding_count} findings across {file_count} files");
-        }
+    if should_print_summary() {
+        eprintln!("{}", format_summary(diagnostics.len(), entries.len()));
     }
 
     Ok(())

@@ -182,6 +182,7 @@ dependencies = [
  "ctl-daemon",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
