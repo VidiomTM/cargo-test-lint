@@ -17,7 +17,7 @@ pub async fn run(
     line_filter: Option<Vec<u32>>,
 ) -> Result<MutationReport> {
     let mut cmd = Command::new("cargo");
-    cmd.arg("mutants").arg("--output-format").arg("json").arg("--output").arg("mutants.out");
+    cmd.arg("mutants");
 
     if let Some(file) = file_filter {
         cmd.arg("--file").arg(file);

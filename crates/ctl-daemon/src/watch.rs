@@ -17,26 +17,22 @@ impl FileWatcher {
         let (tx, rx) = mpsc::channel(256);
         let debounce = Duration::from_millis(debounce_ms);
 
-        let tx_clone = tx.clone();
         let mut watcher = RecommendedWatcher::new(
-            move |res: Result<Event, notify::Error>| {
-                let tx = tx_clone.clone();
-                tokio::spawn(async move {
-                    let files = match res {
-                        Ok(event) => event
-                            .paths
-                            .into_iter()
-                            .filter(|p| p.extension().is_some_and(|ext| ext == "rs"))
-                            .collect::<Vec<_>>(),
-                        Err(e) => {
-                            warn!("watch error: {e}");
-                            Vec::new()
-                        }
-                    };
+            move |res: Result<Event, notify::Error>| match res {
+                Ok(event) => {
+                    let files = event
+                        .paths
+                        .into_iter()
+                        .filter(|p| p.extension().is_some_and(|ext| ext == "rs"))
+                        .collect::<Vec<_>>();
                     if !files.is_empty() {
-                        let _ = tx.send(Ok(files)).await;
+                        let _ = tx.blocking_send(Ok(files));
                     }
-                });
+                }
+                Err(e) => {
+                    warn!("watch error: {e}");
+                    let _ = tx.blocking_send(Err(e.into()));
+                }
             },
             Config::default(),
         )

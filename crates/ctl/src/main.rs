@@ -163,7 +163,7 @@ async fn run() -> Result<()> {
         })?;
 
         let mut ready = false;
-        for _ in 0..20 {
+        for _ in 0..240 {
             if daemon::check_ready(&sock).await {
                 ready = true;
                 break;
@@ -172,7 +172,7 @@ async fn run() -> Result<()> {
         }
         if !ready {
             anyhow::bail!(
-                "daemon did not become ready within 5s\n\
+                "daemon did not become ready within 60s\n\
                  - Check logs: {}/target/ctl-daemon.log\n\
                  - Ensure 'cargo llvm-cov' and 'cargo mutants' are installed\n\
                    cargo install cargo-llvm-cov cargo-mutants",
@@ -241,7 +241,7 @@ async fn run() -> Result<()> {
 }
 
 async fn run_daemon(project_root: &std::path::Path) -> Result<()> {
-    let mut pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.to_path_buf());
+    let pipeline = ctl_daemon::pipeline::Pipeline::new(project_root.to_path_buf());
     let sock = daemon::socket_path(project_root);
     pipeline.serve(&sock).await
 }
