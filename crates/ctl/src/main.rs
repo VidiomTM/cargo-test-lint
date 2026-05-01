@@ -162,17 +162,17 @@ async fn run() -> Result<()> {
             )
         })?;
 
-        let mut alive = false;
+        let mut ready = false;
         for _ in 0..20 {
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-            if daemon::check_liveness(&sock).await {
-                alive = true;
+            if daemon::check_ready(&sock).await {
+                ready = true;
                 break;
             }
         }
-        if !alive {
+        if !ready {
             anyhow::bail!(
-                "daemon did not start within 5s\n\
+                "daemon did not become ready within 5s\n\
                  - Check logs: {}/target/ctl-daemon.log\n\
                  - Ensure 'cargo llvm-cov' and 'cargo mutants' are installed\n\
                    cargo install cargo-llvm-cov cargo-mutants",

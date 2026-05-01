@@ -33,6 +33,31 @@ async fn check_liveness_with_real_socket() {
 }
 
 #[tokio::test]
+async fn check_ready_with_responding_server() {
+    let tmp = tempfile::tempdir().unwrap();
+    let sock = tmp.path().join("ready.sock");
+
+    let server = ctl_daemon::ipc::IpcServer::bind(&sock).await.unwrap();
+    let handle = tokio::spawn(async move {
+        let mut client = server.accept().await.unwrap();
+        let _req = client.read_request().await.unwrap();
+        let resp = ctl_daemon::ipc::IpcResponse { diagnostics: "[]".into() };
+        client.send_response(&resp).await.unwrap();
+    });
+
+    let ready = ctl::daemon::check_ready(&sock).await;
+    assert!(ready, "check_ready should return true when server responds");
+    handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn check_ready_nonexistent_socket() {
+    let ready =
+        ctl::daemon::check_ready(&std::path::PathBuf::from("/tmp/no_such_ready.sock")).await;
+    assert!(!ready, "check_ready should return false for nonexistent socket");
+}
+
+#[tokio::test]
 async fn nudge_nonexistent_socket_returns_error() {
     let result =
         ctl::daemon::nudge(&std::path::PathBuf::from("/tmp/no_such_socket.sock"), None).await;
@@ -53,7 +78,6 @@ async fn nudge_with_file_returns_response() {
         client.send_response(&resp).await.unwrap();
     });
 
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     let resp = ctl::daemon::nudge(&sock, Some("src/lib.rs")).await.unwrap();
     assert_eq!(resp.diagnostics, "[{}]");
     handle.await.unwrap();
@@ -73,7 +97,6 @@ async fn nudge_without_file_returns_all() {
         client.send_response(&resp).await.unwrap();
     });
 
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     let resp = ctl::daemon::nudge(&sock, None).await.unwrap();
     assert_eq!(resp.diagnostics, "all_entries");
     handle.await.unwrap();
