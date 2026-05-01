@@ -14,7 +14,9 @@ pub async fn check_liveness(socket_path: &Path) -> bool {
 }
 
 pub async fn check_ready(socket_path: &Path) -> bool {
-    nudge(socket_path, None).await.is_ok()
+    tokio::time::timeout(std::time::Duration::from_secs(1), nudge(socket_path, None))
+        .await
+        .is_ok_and(|res| res.is_ok())
 }
 
 pub async fn spawn_daemon(project_root: &Path) -> Result<()> {

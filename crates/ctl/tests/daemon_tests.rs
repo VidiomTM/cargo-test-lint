@@ -17,9 +17,9 @@ fn socket_path_relative_path() {
 
 #[tokio::test]
 async fn check_liveness_nonexistent_socket() {
-    let result =
-        ctl::daemon::check_liveness(&std::path::PathBuf::from("/tmp/nonexistent_ctl_test.sock"))
-            .await;
+    let tmp = tempfile::tempdir().unwrap();
+    let missing = tmp.path().join("nonexistent_ctl_test.sock");
+    let result = ctl::daemon::check_liveness(&missing).await;
     assert!(!result, "should return false for nonexistent socket");
 }
 
@@ -52,15 +52,17 @@ async fn check_ready_with_responding_server() {
 
 #[tokio::test]
 async fn check_ready_nonexistent_socket() {
-    let ready =
-        ctl::daemon::check_ready(&std::path::PathBuf::from("/tmp/no_such_ready.sock")).await;
+    let tmp = tempfile::tempdir().unwrap();
+    let missing = tmp.path().join("no_such_ready.sock");
+    let ready = ctl::daemon::check_ready(&missing).await;
     assert!(!ready, "check_ready should return false for nonexistent socket");
 }
 
 #[tokio::test]
 async fn nudge_nonexistent_socket_returns_error() {
-    let result =
-        ctl::daemon::nudge(&std::path::PathBuf::from("/tmp/no_such_socket.sock"), None).await;
+    let tmp = tempfile::tempdir().unwrap();
+    let missing = tmp.path().join("no_such_socket.sock");
+    let result = ctl::daemon::nudge(&missing, None).await;
     assert!(result.is_err());
 }
 

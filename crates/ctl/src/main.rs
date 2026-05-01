@@ -164,11 +164,11 @@ async fn run() -> Result<()> {
 
         let mut ready = false;
         for _ in 0..20 {
-            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             if daemon::check_ready(&sock).await {
                 ready = true;
                 break;
             }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         }
         if !ready {
             anyhow::bail!(
