@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use tokio::sync::{mpsc, Mutex, Semaphore};
+use tokio::sync::{Mutex, Semaphore, mpsc};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -306,7 +306,10 @@ impl Pipeline {
                     pending_full_sweep = false;
                     pending_files.clear();
                 } else if !pending_files.is_empty() {
-                    info!("processing file-scoped work for {} files (coalesced)", pending_files.len());
+                    info!(
+                        "processing file-scoped work for {} files (coalesced)",
+                        pending_files.len()
+                    );
                     if let Err(e) = pipeline_worker.run_file_scoped(&pending_files).await {
                         error!("file-scoped pipeline error: {e}");
                     }
