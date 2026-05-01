@@ -142,25 +142,21 @@ impl Pipeline {
                 .collect();
 
             let file_matrix = CoverageMatrix::from_gaps(&gaps);
-            {
-                let mut matrix = self.matrix.lock().await;
-                *matrix = Some(file_matrix);
-            }
 
             all_diagnostics.extend(ctl_core::diagnostic::coverage_to_diagnostics(&file_gaps));
 
             match self.mut_runner.run(&self.project_root, Some(&rel)).await {
                 Ok(report) => {
-                    let matrix = self.matrix.lock().await;
-                    if let Some(ref matrix) = *matrix {
-                        let filtered = matrix.filter_mutant_targets(&report.mutants);
-                        info!(
-                            "mutation results for {rel}: {} surviving mutants (filtered)",
-                            filtered.len()
-                        );
-                        all_diagnostics
-                            .extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
-                    }
+                    let filtered = file_matrix.filter_mutant_targets(&report.mutants);
+                    info!(
+                        "mutation results for {rel}: {} surviving mutants (filtered)",
+                        filtered.len()
+                    );
+                    all_diagnostics
+                        .extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
+
+                    let mut matrix = self.matrix.lock().await;
+                    *matrix = Some(file_matrix);
                 }
                 Err(e) => {
                     warn!("mutation run failed for {rel}: {e}");
