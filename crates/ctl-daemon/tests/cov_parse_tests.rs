@@ -210,7 +210,7 @@ fn parse_llvm_cov_json_aggregates_multiple_data_entries() {
                 "totals": {}
             },
             {
-                "files": [{"filename": "b.rs", "segments": [], "summary": {"lines": {"count": 10, "covered": 10, "notcovered": 0, "percent": 100.0}, "regions": {"count": 8, "covered": 8, "notcovered": 0, "percent": 100.0}, "branches": {"count": 0, "covered": 0, "percent": 0.0}, "functions": {"count": 2, "covered": 2, "percent": 100.0}, "instantiations": {"count": 2, "covered": 2, "percent": 100.0}}}],
+                "files": [{"filename": "a.rs", "segments": [], "summary": {"lines": {"count": 10, "covered": 10, "notcovered": 0, "percent": 100.0}, "regions": {"count": 8, "covered": 8, "notcovered": 0, "percent": 100.0}, "branches": {"count": 0, "covered": 0, "percent": 0.0}, "functions": {"count": 2, "covered": 2, "percent": 100.0}, "instantiations": {"count": 2, "covered": 2, "percent": 100.0}}}],
                 "functions": [],
                 "totals": {}
             }
@@ -219,7 +219,11 @@ fn parse_llvm_cov_json_aggregates_multiple_data_entries() {
         "version": "2.0.1"
     }"#;
     let report = cov_parse::parse_llvm_cov_json(json).unwrap();
-    assert_eq!(report.files.len(), 2);
+    assert_eq!(report.files.len(), 1, "same filename should aggregate into one entry");
+    assert_eq!(report.files[0].path, "a.rs");
+    assert_eq!(report.files[0].summary.lines, 15, "lines should aggregate: 5 + 10");
+    assert_eq!(report.files[0].summary.covered, 13, "covered should aggregate: 3 + 10");
+    assert_eq!(report.files[0].summary.not_covered, 2, "not_covered should aggregate: 2 + 0");
 }
 
 #[test]

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Semaphore};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -121,42 +121,38 @@ impl Pipeline {
 
             let mut all_diagnostics = Vec::new();
 
-            match self.cov_runner.gaps(&self.project_root).await {
-                Ok(gaps) => {
-                    let file_gaps: Vec<_> = gaps
-                        .iter()
-                        .filter(|g| {
-                            let gap_path = PathBuf::from(&g.file_path);
-                            let stripped = gap_path.strip_prefix(&self.project_root);
-                            let rel = stripped.unwrap_or(&gap_path);
-                            rel == file.as_path() || file.ends_with(rel)
-                        })
-                        .cloned()
-                        .collect();
-                    let file_matrix = CoverageMatrix::from_gaps(&gaps);
-                    let mut matrix = self.matrix.lock().await;
-                    match matrix.as_mut() {
-                        Some(m) => {
-                            m.remove_file(file);
-                            m.merge(file_matrix);
-                        }
-                        None => {
-                            *matrix = Some(file_matrix);
-                        }
-                    }
-                    drop(matrix);
-                    all_diagnostics
-                        .extend(ctl_core::diagnostic::coverage_to_diagnostics(&file_gaps));
-                }
+            let gaps = match self.cov_runner.gaps(&self.project_root).await {
+                Ok(gaps) => gaps,
                 Err(e) => {
                     warn!("coverage run failed for {rel}: {e}");
+                    self.cache.invalidate(std::slice::from_ref(file));
+                    continue;
                 }
+            };
+
+            let file_gaps: Vec<_> = gaps
+                .iter()
+                .filter(|g| {
+                    let gap_path = PathBuf::from(&g.file_path);
+                    let stripped = gap_path.strip_prefix(&self.project_root);
+                    let rel = stripped.unwrap_or(&gap_path);
+                    rel == file.as_path() || file.ends_with(rel)
+                })
+                .cloned()
+                .collect();
+
+            let file_matrix = CoverageMatrix::from_gaps(&gaps);
+            {
+                let mut matrix = self.matrix.lock().await;
+                *matrix = Some(file_matrix);
             }
 
-            let matrix = self.matrix.lock().await;
-            if let Some(ref matrix) = *matrix {
-                match self.mut_runner.run(&self.project_root, Some(&rel)).await {
-                    Ok(report) => {
+            all_diagnostics.extend(ctl_core::diagnostic::coverage_to_diagnostics(&file_gaps));
+
+            match self.mut_runner.run(&self.project_root, Some(&rel)).await {
+                Ok(report) => {
+                    let matrix = self.matrix.lock().await;
+                    if let Some(ref matrix) = *matrix {
                         let filtered = matrix.filter_mutant_targets(&report.mutants);
                         info!(
                             "mutation results for {rel}: {} surviving mutants (filtered)",
@@ -165,12 +161,11 @@ impl Pipeline {
                         all_diagnostics
                             .extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
                     }
-                    Err(e) => {
-                        warn!("mutation run failed for {rel}: {e}");
-                    }
+                }
+                Err(e) => {
+                    warn!("mutation run failed for {rel}: {e}");
                 }
             }
-            drop(matrix);
 
             if !all_diagnostics.is_empty() {
                 let entry = ctl_core::diagnostic::DiagnosticEntry {
@@ -249,9 +244,14 @@ impl Pipeline {
 
         let cache = Arc::clone(&self.cache);
         let pipeline = Arc::new(self);
+        let run_gate = Arc::new(Semaphore::new(1));
 
         let pipeline_clone = Arc::clone(&pipeline);
+        let gate = Arc::clone(&run_gate);
         tokio::spawn(async move {
+            let Ok(_permit) = gate.acquire_owned().await else {
+                return;
+            };
             info!("warming cache with initial full sweep");
             if let Err(e) = pipeline_clone.run_full_sweep().await {
                 warn!("initial sweep failed: {e}");
@@ -266,7 +266,9 @@ impl Pipeline {
             tokio::select! {
                 changed = watcher.changed_files() => {
                     let pipeline = Arc::clone(&pipeline);
+                    let gate = Arc::clone(&run_gate);
                     tokio::spawn(async move {
+                        let Ok(_permit) = gate.acquire_owned().await else { return; };
                         match changed {
                             Ok(files) => {
                                 if let Err(e) = pipeline.run_file_scoped(&files).await {
@@ -282,7 +284,9 @@ impl Pipeline {
 
                 _ = sweep_interval.tick() => {
                     let pipeline = Arc::clone(&pipeline);
+                    let gate = Arc::clone(&run_gate);
                     tokio::spawn(async move {
+                        let Ok(_permit) = gate.acquire_owned().await else { return; };
                         if let Err(e) = pipeline.run_full_sweep().await {
                             error!("full sweep error: {e}");
                         }

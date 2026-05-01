@@ -124,7 +124,9 @@ pub fn parse_llvm_cov_json(raw: &str) -> anyhow::Result<CoverageReport> {
                 if let Some(ref lines) = summary.lines {
                     accum.lines += lines.count;
                     accum.covered += lines.covered;
-                    accum.not_covered += lines.notcovered.unwrap_or(lines.count - lines.covered);
+                    accum.not_covered += lines
+                        .notcovered
+                        .unwrap_or_else(|| lines.count.saturating_sub(lines.covered));
                     if lines.count > 0 {
                         accum.summary_percent = (accum.covered as f64 / accum.lines as f64) * 100.0;
                     }
