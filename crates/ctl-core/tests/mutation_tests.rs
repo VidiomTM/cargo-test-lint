@@ -43,7 +43,7 @@ fn from_cargo_mutants_name_unknown_variant() {
 }
 
 #[test]
-fn mutation_report_empty() {
+fn mutation_kind_from_cargo_mutants_name_arithmetic() {
     let r = MutationKind::from_cargo_mutants_name("replace_arithmetic_operator");
     assert!(matches!(r, MutationKind::Arithmetic));
 }

@@ -17,7 +17,7 @@ pub async fn spawn_daemon(project_root: &Path) -> Result<()> {
     let target_dir = project_root.join("target");
     tokio::fs::create_dir_all(&target_dir).await?;
     let log_path = target_dir.join("ctl-daemon.log");
-    let log_file = std::fs::File::create(&log_path)?;
+    let log_file = tokio::fs::File::create(&log_path).await?.into_std().await;
 
     let exe = std::env::current_exe()?;
     let mut cmd = tokio::process::Command::new(exe);
@@ -44,7 +44,10 @@ pub async fn nudge(socket_path: &Path, file: Option<&str>) -> Result<IpcResponse
 
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
-    reader.read_line(&mut line).await?;
+    let n = reader.read_line(&mut line).await?;
+    if n == 0 {
+        anyhow::bail!("ipc peer closed connection before sending a response");
+    }
     let resp: IpcResponse = serde_json::from_str(line.trim())?;
     Ok(resp)
 }

@@ -59,7 +59,10 @@ impl IpcClient {
 
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a response");
+        }
         let resp: IpcResponse = serde_json::from_str(line.trim())?;
         Ok(resp)
     }
@@ -68,7 +71,10 @@ impl IpcClient {
         let (reader, _) = self.stream.split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a request");
+        }
         let req: IpcRequest = serde_json::from_str(line.trim())?;
         Ok(req)
     }
@@ -87,7 +93,10 @@ impl IpcClient {
         let (reader, _) = self.stream.split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            anyhow::bail!("ipc peer closed connection before sending a response");
+        }
         let resp: IpcResponse = serde_json::from_str(line.trim())?;
         Ok(resp)
     }

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ctl_daemon::ipc::{IpcRequest, IpcResponse};
 
 #[test]
@@ -36,7 +34,6 @@ async fn ipc_server_bind_and_connect() {
     let server = ctl_daemon::ipc::IpcServer::bind(&sock_path).await.unwrap();
     assert!(sock_path.exists());
 
-    let sock_path_clone = sock_path.clone();
     let handle = tokio::spawn(async move {
         let mut client = server.accept().await.unwrap();
         let req = client.read_request().await.unwrap();
@@ -46,9 +43,7 @@ async fn ipc_server_bind_and_connect() {
         client.send_response(&resp).await.unwrap();
     });
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
-
-    let stream = tokio::net::UnixStream::connect(&sock_path_clone).await.unwrap();
+    let stream = tokio::net::UnixStream::connect(&sock_path).await.unwrap();
     let (reader, mut writer) = stream.into_split();
     let req = IpcRequest { file: Some("src/lib.rs".into()) };
     let json = serde_json::to_string(&req).unwrap();
@@ -94,7 +89,6 @@ async fn ipc_multiple_requests() {
 
     let server = ctl_daemon::ipc::IpcServer::bind(&sock_path).await.unwrap();
 
-    let sock_path_clone = sock_path.clone();
     let handle = tokio::spawn(async move {
         for i in 0..3 {
             let mut client = server.accept().await.unwrap();
@@ -104,10 +98,8 @@ async fn ipc_multiple_requests() {
         }
     });
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
-
     for i in 0..3 {
-        let stream = tokio::net::UnixStream::connect(&sock_path_clone).await.unwrap();
+        let stream = tokio::net::UnixStream::connect(&sock_path).await.unwrap();
         let (reader, mut writer) = stream.into_split();
         let req = IpcRequest { file: None };
         let json = serde_json::to_string(&req).unwrap();

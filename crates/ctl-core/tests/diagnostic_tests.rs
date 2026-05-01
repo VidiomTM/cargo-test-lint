@@ -124,6 +124,10 @@ fn resolve_byte_offsets_with_source() {
     resolve_byte_offsets(&mut diags, &sources);
     assert_ne!(diags[0].spans[0].byte_start, 0);
     assert_ne!(diags[0].spans[0].byte_end, 0);
+    assert!(diags[0].spans[0].byte_end > diags[0].spans[0].byte_start);
+    let src_len = sources["test.rs"].len();
+    assert!(diags[0].spans[0].byte_start < src_len);
+    assert!(diags[0].spans[0].byte_end <= src_len);
 }
 
 #[test]
@@ -151,6 +155,7 @@ fn resolve_byte_offsets_missing_source() {
     let sources = HashMap::new();
     resolve_byte_offsets(&mut diags, &sources);
     assert_eq!(diags[0].spans[0].byte_start, 0);
+    assert_eq!(diags[0].spans[0].byte_end, 0);
 }
 
 #[test]
