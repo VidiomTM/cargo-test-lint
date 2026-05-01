@@ -152,15 +152,16 @@ impl Pipeline {
                         "mutation results for {rel}: {} surviving mutants (filtered)",
                         filtered.len()
                     );
-                    all_diagnostics
-                        .extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
-
-                    let mut matrix = self.matrix.lock().await;
-                    *matrix = Some(file_matrix);
+                    all_diagnostics.extend(ctl_core::diagnostic::mutant_to_diagnostics(&filtered));
                 }
                 Err(e) => {
                     warn!("mutation run failed for {rel}: {e}");
                 }
+            }
+
+            {
+                let mut matrix = self.matrix.lock().await;
+                *matrix = Some(file_matrix);
             }
 
             if !all_diagnostics.is_empty() {
@@ -189,9 +190,7 @@ impl Pipeline {
 
         let cov_diagnostics = ctl_core::diagnostic::coverage_to_diagnostics(&gaps);
 
-        let mut matrix = self.matrix.lock().await;
-        *matrix = Some(CoverageMatrix::from_gaps(&gaps));
-        drop(matrix);
+        let matrix = CoverageMatrix::from_gaps(&gaps);
 
         let report = self.mut_runner.run(&self.project_root, None).await?;
         info!(
@@ -199,9 +198,12 @@ impl Pipeline {
             report.total, report.survived, report.killed, report.timeout
         );
 
-        let matrix = self.matrix.lock().await;
-        let filtered = matrix.as_ref().unwrap().filter_mutant_targets(&report.mutants);
-        drop(matrix);
+        let filtered = matrix.filter_mutant_targets(&report.mutants);
+
+        {
+            let mut shared_matrix = self.matrix.lock().await;
+            *shared_matrix = Some(matrix);
+        }
         let mut_diagnostics = ctl_core::diagnostic::mutant_to_diagnostics(&filtered);
 
         let mut all_diagnostics: Vec<_> = cov_diagnostics;
