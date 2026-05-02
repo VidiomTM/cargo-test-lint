@@ -3,11 +3,11 @@ pub mod async_safety;
 pub mod cloning;
 pub mod complexity;
 pub mod dead_code;
+pub mod drop;
 pub mod flow;
 pub mod nextest;
 pub mod sleep;
 pub mod structure;
-pub mod drop;
 
 use crate::config::Config;
 use crate::diagnostics::{Diagnostic, DiagnosticLevel};
@@ -47,7 +47,7 @@ pub fn run_rule<'a>(rule: &dyn Rule, ctx: &RuleContext<'a>) -> Vec<Diagnostic> {
 
     let mut diagnostics = Vec::new();
     while let Some(query_match) = matches.next() {
-        let mut rule_diags = rule.validate(ctx, &query_match);
+        let mut rule_diags = rule.validate(ctx, query_match);
         for diag in &mut rule_diags {
             diag.level = level.clone();
         }
@@ -99,11 +99,7 @@ pub fn test_rule(rule: &dyn Rule, source: &str) -> Vec<Diagnostic> {
 
 /// Helper for tests: parse a snippet and run a single rule with custom config.
 #[cfg(test)]
-pub fn test_rule_with_config(
-    rule: &dyn Rule,
-    source: &str,
-    config: Config,
-) -> Vec<Diagnostic> {
+pub fn test_rule_with_config(rule: &dyn Rule, source: &str, config: Config) -> Vec<Diagnostic> {
     let tree = crate::parser::parse_source(source.as_bytes()).unwrap();
     let ctx = RuleContext {
         source: source.as_bytes(),

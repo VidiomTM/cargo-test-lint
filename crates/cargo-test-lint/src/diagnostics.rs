@@ -73,10 +73,7 @@ impl Diagnostic {
 
     pub fn sort_by_position(diagnostics: &mut [Self]) {
         diagnostics.sort_by(|a, b| {
-            a.file_path
-                .cmp(&b.file_path)
-                .then(a.line.cmp(&b.line))
-                .then(a.column.cmp(&b.column))
+            a.file_path.cmp(&b.file_path).then(a.line.cmp(&b.line)).then(a.column.cmp(&b.column))
         });
     }
 }

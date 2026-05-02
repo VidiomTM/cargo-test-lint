@@ -65,7 +65,17 @@ mod tests {
     use std::path::PathBuf;
 
     fn make_diag(rule_id: &str, level: DiagnosticLevel) -> Diagnostic {
-        Diagnostic { rule_id: rule_id.into(), level, message: "test message".into(), file_path: PathBuf::from("src/lib.rs"), line: 10, column: 5, end_line: 10, end_column: 20, suggestion: None }
+        Diagnostic {
+            rule_id: rule_id.into(),
+            level,
+            message: "test message".into(),
+            file_path: PathBuf::from("src/lib.rs"),
+            line: 10,
+            column: 5,
+            end_line: 10,
+            end_column: 20,
+            suggestion: None,
+        }
     }
 
     fn format(diags: &[Diagnostic]) -> serde_json::Value {
@@ -76,10 +86,14 @@ mod tests {
     }
 
     #[test]
-    fn sarif_version() { assert_eq!(format(&[])["version"], "2.1.0"); }
+    fn sarif_version() {
+        assert_eq!(format(&[])["version"], "2.1.0");
+    }
 
     #[test]
-    fn sarif_has_tool_driver() { assert_eq!(format(&[])["runs"][0]["tool"]["driver"]["name"], "cargo-test-lint"); }
+    fn sarif_has_tool_driver() {
+        assert_eq!(format(&[])["runs"][0]["tool"]["driver"]["name"], "cargo-test-lint");
+    }
 
     #[test]
     fn sarif_contains_results() {
@@ -90,7 +104,8 @@ mod tests {
 
     #[test]
     fn sarif_level_mapping() {
-        let sarif = format(&[make_diag("A", DiagnosticLevel::Warn), make_diag("B", DiagnosticLevel::Deny)]);
+        let sarif =
+            format(&[make_diag("A", DiagnosticLevel::Warn), make_diag("B", DiagnosticLevel::Deny)]);
         assert_eq!(sarif["runs"][0]["results"][0]["level"], "warning");
         assert_eq!(sarif["runs"][0]["results"][1]["level"], "error");
     }
@@ -106,7 +121,12 @@ mod tests {
     #[test]
     fn sarif_includes_fix() {
         let mut diag = make_diag("CTL_ASSERT_MSG", DiagnosticLevel::Warn);
-        diag.suggestion = Some(Fix { description: "add message".into(), replacement: "assert!(true, \"msg\")".into(), start_byte: 0, end_byte: 15 });
+        diag.suggestion = Some(Fix {
+            description: "add message".into(),
+            replacement: "assert!(true, \"msg\")".into(),
+            start_byte: 0,
+            end_byte: 15,
+        });
         let sarif = format(&[diag]);
         assert!(sarif["runs"][0]["results"][0]["fixes"].is_array());
     }

@@ -5,10 +5,18 @@ use tree_sitter::QueryMatch;
 pub struct NestedMod;
 
 impl Rule for NestedMod {
-    fn id(&self) -> &'static str { "CTL_NESTED_MOD" }
-    fn config_key(&self) -> &'static str { "nested-mod" }
-    fn description(&self) -> &'static str { "deeply nested test module" }
-    fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
+    fn id(&self) -> &'static str {
+        "CTL_NESTED_MOD"
+    }
+    fn config_key(&self) -> &'static str {
+        "nested-mod"
+    }
+    fn description(&self) -> &'static str {
+        "deeply nested test module"
+    }
+    fn default_level(&self) -> DiagnosticLevel {
+        DiagnosticLevel::Warn
+    }
     fn query_str(&self) -> &'static str {
         r#"(mod_item
             name: (identifier) @name) @mod"#
@@ -16,16 +24,24 @@ impl Rule for NestedMod {
     fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
         let name_node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
         let mod_node = query_match.captures.iter().find(|c| c.index == 1).map(|c| c.node);
-        let (Some(node), Some(name)) = (mod_node, name_node) else { return vec![]; };
+        let (Some(node), Some(name)) = (mod_node, name_node) else {
+            return vec![];
+        };
         let name_str = name.utf8_text(ctx.source).unwrap_or("");
-        if !is_test_module(&node, ctx.source, name_str) { return vec![]; }
+        if !is_test_module(&node, ctx.source, name_str) {
+            return vec![];
+        }
         let depth = mod_nesting_depth(&node);
         let threshold = ctx.config.max_nested_mod;
-        if threshold == 0 || depth <= threshold { return vec![]; }
+        if threshold == 0 || depth <= threshold {
+            return vec![];
+        }
         vec![Diagnostic {
             rule_id: self.id().into(),
             level: self.default_level(),
-            message: format!("test module nesting depth {depth} (max {threshold}) — flatten structure"),
+            message: format!(
+                "test module nesting depth {depth} (max {threshold}) — flatten structure"
+            ),
             file_path: ctx.file_path.to_path_buf(),
             line: node.start_position().row + 1,
             column: node.start_position().column + 1,
@@ -37,14 +53,20 @@ impl Rule for NestedMod {
 }
 
 fn is_test_module(node: &tree_sitter::Node, source: &[u8], name: &str) -> bool {
-    if name == "tests" || name == "test" { return true; }
+    if name == "tests" || name == "test" {
+        return true;
+    }
     if let Some(parent) = node.parent() {
         let mut cursor = parent.walk();
         for child in parent.children(&mut cursor) {
-            if child == *node { break; }
+            if child == *node {
+                break;
+            }
             if child.kind() == "attribute_item" {
                 let text = child.utf8_text(source).unwrap_or("");
-                if text.contains("cfg(test)") { return true; }
+                if text.contains("cfg(test)") {
+                    return true;
+                }
             }
         }
     }
@@ -55,7 +77,9 @@ fn mod_nesting_depth(node: &tree_sitter::Node) -> usize {
     let mut depth = 1;
     let mut current = node.parent();
     while let Some(parent) = current {
-        if parent.kind() == "mod_item" { depth += 1; }
+        if parent.kind() == "mod_item" {
+            depth += 1;
+        }
         current = parent.parent();
     }
     depth
@@ -64,8 +88,8 @@ fn mod_nesting_depth(node: &tree_sitter::Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rules::test_rule_with_config;
     use crate::config::Config;
+    use crate::rules::test_rule_with_config;
 
     fn config_with_max(max: usize) -> Config {
         let mut config = Config::default();
@@ -97,7 +121,8 @@ mod tests {
 
     #[test]
     fn cfg_test_attribute_detected() {
-        let source = r#"mod a { mod b { #[cfg(test)] mod my_tests { #[test] fn test_foo() {} } } }"#;
+        let source =
+            r#"mod a { mod b { #[cfg(test)] mod my_tests { #[test] fn test_foo() {} } } }"#;
         let diags = test_rule_with_config(&NestedMod, source, config_with_max(2));
         assert_eq!(diags.len(), 1);
     }

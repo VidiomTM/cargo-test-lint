@@ -34,11 +34,7 @@ impl Rule for SleepyTest {
     }
 
     fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
-        let call_node = query_match
-            .captures
-            .iter()
-            .find(|c| c.index == 0)
-            .map(|c| c.node);
+        let call_node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
 
         let Some(node) = call_node else {
             return vec![];

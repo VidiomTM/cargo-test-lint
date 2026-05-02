@@ -93,6 +93,7 @@ dependencies = [
  "ignore",
  "serde",
  "serde_json",
+ "streaming-iterator",
  "tempfile",
  "thiserror",
  "toml",

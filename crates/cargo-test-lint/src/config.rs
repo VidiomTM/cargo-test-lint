@@ -39,13 +39,7 @@ impl Default for Config {
         rules.insert("dead-test-helper".into(), RuleConfig::Level(DiagnosticLevel::Warn));
         rules.insert("nextest-compatibility".into(), RuleConfig::Level(DiagnosticLevel::Warn));
 
-        Self {
-            rules,
-            max_expects: 5,
-            max_nested_mod: 3,
-            nextest: false,
-            deny_warnings: false,
-        }
+        Self { rules, max_expects: 5, max_nested_mod: 3, nextest: false, deny_warnings: false }
     }
 }
 
@@ -58,10 +52,7 @@ impl Config {
     }
 
     pub fn rule_enabled(&self, rule_id: &str) -> bool {
-        !matches!(
-            self.rules.get(rule_id),
-            Some(RuleConfig::Level(DiagnosticLevel::Allow))
-        )
+        !matches!(self.rules.get(rule_id), Some(RuleConfig::Level(DiagnosticLevel::Allow)))
     }
 }
 
@@ -126,10 +117,7 @@ mod tests {
     #[test]
     fn rule_level_returns_default_when_not_configured() {
         let config = Config::default();
-        assert_eq!(
-            config.rule_level("nonexistent", DiagnosticLevel::Deny),
-            DiagnosticLevel::Deny
-        );
+        assert_eq!(config.rule_level("nonexistent", DiagnosticLevel::Deny), DiagnosticLevel::Deny);
     }
 
     #[test]
@@ -166,10 +154,7 @@ sleepy-test = "deny"
 
         let config = load(tmp.path());
         assert_eq!(config.max_expects, 10);
-        assert_eq!(
-            config.rule_level("sleepy-test", DiagnosticLevel::Warn),
-            DiagnosticLevel::Deny
-        );
+        assert_eq!(config.rule_level("sleepy-test", DiagnosticLevel::Warn), DiagnosticLevel::Deny);
     }
 
     #[test]

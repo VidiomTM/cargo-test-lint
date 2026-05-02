@@ -42,8 +42,7 @@ impl Rule for AssertMsg {
 
         // Find token_tree as a named child (not a field)
         let mut cursor = macro_node.walk();
-        let token_tree = macro_node.named_children(&mut cursor)
-            .find(|c| c.kind() == "token_tree");
+        let token_tree = macro_node.named_children(&mut cursor).find(|c| c.kind() == "token_tree");
         let Some(tt) = token_tree else {
             return vec![];
         };
@@ -144,7 +143,9 @@ impl Rule for MaxExpects {
         let body_capture = query_match.captures.iter().find(|c| c.index == 2);
         let fn_capture = query_match.captures.iter().find(|c| c.index == 3);
 
-        let (Some(body_node), Some(fn_node)) = (body_capture.map(|c| c.node), fn_capture.map(|c| c.node)) else {
+        let (Some(body_node), Some(fn_node)) =
+            (body_capture.map(|c| c.node), fn_capture.map(|c| c.node))
+        else {
             return vec![];
         };
 
@@ -184,11 +185,7 @@ fn count_assertions(body: &tree_sitter::Node, source: &[u8]) -> usize {
     count
 }
 
-fn count_assertions_inner(
-    node: &tree_sitter::Node,
-    source: &[u8],
-    count: &mut usize,
-) {
+fn count_assertions_inner(node: &tree_sitter::Node, source: &[u8], count: &mut usize) {
     if node.kind() == "macro_invocation" {
         if let Some(name_node) = node.child_by_field_name("macro") {
             let name = name_node.utf8_text(source).unwrap_or("");
@@ -301,8 +298,8 @@ fn test_foo() {
     }
 
     // MaxExpects tests
-    use crate::rules::test_rule_with_config;
     use crate::config::Config;
+    use crate::rules::test_rule_with_config;
 
     fn config_with_max(max: usize) -> Config {
         let mut config = Config::default();

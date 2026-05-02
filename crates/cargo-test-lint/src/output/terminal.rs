@@ -21,20 +21,45 @@ impl Formatter for TerminalFormatter {
             let reset = "\x1b[0m";
             let bold = "\x1b[1m";
             let dim = "\x1b[2m";
-            writeln!(writer, "{color}{level_str}{reset}{dim}[{rule}]{reset}: {message}", rule = diag.rule_id, message = diag.message)?;
-            writeln!(writer, "  {bold}-->{reset} {path}:{line}:{col}", path = diag.file_path.display(), line = diag.line, col = diag.column)?;
+            writeln!(
+                writer,
+                "{color}{level_str}{reset}{dim}[{rule}]{reset}: {message}",
+                rule = diag.rule_id,
+                message = diag.message
+            )?;
+            writeln!(
+                writer,
+                "  {bold}-->{reset} {path}:{line}:{col}",
+                path = diag.file_path.display(),
+                line = diag.line,
+                col = diag.column
+            )?;
             if let Some(fix) = &diag.suggestion {
-                writeln!(writer, "  {dim}|{reset} help: {desc}: `{replacement}`", desc = fix.description, replacement = fix.replacement)?;
+                writeln!(
+                    writer,
+                    "  {dim}|{reset} help: {desc}: `{replacement}`",
+                    desc = fix.description,
+                    replacement = fix.replacement
+                )?;
             }
             writeln!(writer)?;
         }
-        let non_allow: Vec<_> = diagnostics.iter().filter(|d| d.level != DiagnosticLevel::Allow).collect();
+        let non_allow: Vec<_> =
+            diagnostics.iter().filter(|d| d.level != DiagnosticLevel::Allow).collect();
         let errors = non_allow.iter().filter(|d| d.level.is_error()).count();
-        let warnings = non_allow.iter().filter(|d| matches!(d.level, DiagnosticLevel::Warn)).count();
+        let warnings =
+            non_allow.iter().filter(|d| matches!(d.level, DiagnosticLevel::Warn)).count();
         if !non_allow.is_empty() {
             let color = if errors > 0 { "\x1b[31m" } else { "\x1b[33m" };
             let reset = "\x1b[0m";
-            writeln!(writer, "{color}{} error{}, {} warning{}{reset}", errors, if errors == 1 { "" } else { "s" }, warnings, if warnings == 1 { "" } else { "s" })?;
+            writeln!(
+                writer,
+                "{color}{} error{}, {} warning{}{reset}",
+                errors,
+                if errors == 1 { "" } else { "s" },
+                warnings,
+                if warnings == 1 { "" } else { "s" }
+            )?;
         }
         Ok(())
     }
@@ -47,7 +72,17 @@ mod tests {
     use std::path::PathBuf;
 
     fn make_diag(rule_id: &str, level: DiagnosticLevel, msg: &str) -> Diagnostic {
-        Diagnostic { rule_id: rule_id.into(), level, message: msg.into(), file_path: PathBuf::from("src/lib.rs"), line: 10, column: 5, end_line: 10, end_column: 20, suggestion: None }
+        Diagnostic {
+            rule_id: rule_id.into(),
+            level,
+            message: msg.into(),
+            file_path: PathBuf::from("src/lib.rs"),
+            line: 10,
+            column: 5,
+            end_line: 10,
+            end_column: 20,
+            suggestion: None,
+        }
     }
 
     fn format(diags: &[Diagnostic]) -> String {
@@ -74,7 +109,12 @@ mod tests {
     #[test]
     fn suggestion_rendered() {
         let mut diag = make_diag("CTL_ASSERT_MSG", DiagnosticLevel::Warn, "no msg");
-        diag.suggestion = Some(Fix { description: "add message".into(), replacement: "assert!(true, \"msg\")".into(), start_byte: 0, end_byte: 20 });
+        diag.suggestion = Some(Fix {
+            description: "add message".into(),
+            replacement: "assert!(true, \"msg\")".into(),
+            start_byte: 0,
+            end_byte: 20,
+        });
         let output = format(&[diag]);
         assert!(output.contains("help: add message"));
         assert!(output.contains("assert!(true, \"msg\")"));
@@ -82,7 +122,11 @@ mod tests {
 
     #[test]
     fn summary_counts() {
-        let diags = vec![make_diag("A", DiagnosticLevel::Warn, "w1"), make_diag("B", DiagnosticLevel::Warn, "w2"), make_diag("C", DiagnosticLevel::Deny, "e1")];
+        let diags = vec![
+            make_diag("A", DiagnosticLevel::Warn, "w1"),
+            make_diag("B", DiagnosticLevel::Warn, "w2"),
+            make_diag("C", DiagnosticLevel::Deny, "e1"),
+        ];
         let output = format(&diags);
         assert!(output.contains("1 error"));
         assert!(output.contains("2 warnings"));

@@ -31,7 +31,9 @@ impl Rule for TestBranching {
         let fn_capture = query_match.captures.iter().find(|c| c.index == 0);
         let body_capture = query_match.captures.iter().find(|c| c.index == 1);
 
-        let (Some(fn_node), Some(body_node)) = (fn_capture.map(|c| c.node), body_capture.map(|c| c.node)) else {
+        let (Some(fn_node), Some(body_node)) =
+            (fn_capture.map(|c| c.node), body_capture.map(|c| c.node))
+        else {
             return vec![];
         };
 

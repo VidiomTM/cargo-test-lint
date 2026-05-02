@@ -1,5 +1,12 @@
+use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
+
+use cargo_test_lint::config;
+use cargo_test_lint::diagnostics::Diagnostic;
+use cargo_test_lint::output::{Formatter, OutputFormat};
+use cargo_test_lint::parser;
+use cargo_test_lint::rules;
 
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
@@ -34,31 +41,50 @@ struct TestLintArgs {
 
 fn main() -> anyhow::Result<()> {
     let Cargo::TestLint(args) = Cargo::parse();
-    let config = cargo_test_lint::config::load(&args.project_root);
-    let files = cargo_test_lint::parser::collect_rs_files(&args.project_root)?;
 
-    let mut all_diagnostics = Vec::new();
-    for file in &files {
-        let (source, tree) = cargo_test_lint::parser::parse_file(file)?;
-        let ctx = cargo_test_lint::rules::RuleContext {
-            source: &source,
-            tree: &tree,
-            config: &config,
-            file_path: file,
-        };
-        all_diagnostics.extend(cargo_test_lint::rules::run_all_rules(&ctx));
+    let mut config = config::load(&args.project_root);
+
+    if let Some(max) = args.max_expects {
+        config.max_expects = max;
+    }
+    if args.nextest {
+        config.nextest = true;
+    }
+    if args.deny_warnings {
+        config.deny_warnings = true;
     }
 
-    use cargo_test_lint::output::Formatter;
-    let formatter: Box<dyn Formatter> = match args.format.as_str() {
-        "sarif" => Box::new(cargo_test_lint::output::sarif::SarifFormatter),
-        _ => Box::new(cargo_test_lint::output::terminal::TerminalFormatter),
+    let files =
+        parser::collect_rs_files(&args.project_root).context("failed to collect source files")?;
+
+    let mut all_diagnostics = Vec::new();
+
+    for file in &files {
+        let (source, tree) = match parser::parse_file(file) {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("warning: skipping {}: {}", file.display(), e);
+                continue;
+            }
+        };
+
+        let ctx =
+            rules::RuleContext { source: &source, tree: &tree, config: &config, file_path: file };
+
+        all_diagnostics.extend(rules::run_all_rules(&ctx));
+    }
+
+    let format: OutputFormat = args.format.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+
+    let formatter: Box<dyn Formatter> = match format {
+        OutputFormat::Terminal => Box::new(cargo_test_lint::output::terminal::TerminalFormatter),
+        OutputFormat::Sarif => Box::new(cargo_test_lint::output::sarif::SarifFormatter),
     };
 
     formatter.write(&all_diagnostics, &mut std::io::stderr())?;
 
-    if cargo_test_lint::diagnostics::Diagnostic::has_errors(&all_diagnostics)
-        || (args.deny_warnings && !all_diagnostics.is_empty())
+    if Diagnostic::has_errors(&all_diagnostics)
+        || (config.deny_warnings && !all_diagnostics.is_empty())
     {
         std::process::exit(1);
     }

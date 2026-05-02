@@ -12,7 +12,8 @@ const BLOCKING_FNS: &[&str] = [
     "std::net::TcpStream::connect",
     "reqwest::blocking",
     "tokio::runtime::Runtime::new",
-].as_slice();
+]
+.as_slice();
 
 impl Rule for AsyncBlocking {
     fn id(&self) -> &'static str {
@@ -65,7 +66,12 @@ impl Rule for AsyncBlocking {
     }
 }
 
-fn find_blocking_calls(ctx: &RuleContext, rule: &AsyncBlocking, node: tree_sitter::Node, diagnostics: &mut Vec<Diagnostic>) {
+fn find_blocking_calls(
+    ctx: &RuleContext,
+    rule: &AsyncBlocking,
+    node: tree_sitter::Node,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "call_expression" {
@@ -76,7 +82,9 @@ fn find_blocking_calls(ctx: &RuleContext, rule: &AsyncBlocking, node: tree_sitte
                         diagnostics.push(Diagnostic {
                             rule_id: rule.id().into(),
                             level: rule.default_level(),
-                            message: format!("blocking call `{text}` in async test — use async equivalent"),
+                            message: format!(
+                                "blocking call `{text}` in async test — use async equivalent"
+                            ),
                             file_path: ctx.file_path.to_path_buf(),
                             line: child.start_position().row + 1,
                             column: child.start_position().column + 1,

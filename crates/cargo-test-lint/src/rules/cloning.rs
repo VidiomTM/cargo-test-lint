@@ -13,30 +13,58 @@ fn collect_descendants<'a>(node: Node<'a>, acc: &mut Vec<Node<'a>>) {
 }
 
 impl Rule for UnnecessaryClone {
-    fn id(&self) -> &'static str { "CTL_UNNECESSARY_CLONE" }
-    fn config_key(&self) -> &'static str { "unnecessary-clone" }
-    fn description(&self) -> &'static str { "unnecessary .clone()" }
-    fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
-    fn query_str(&self) -> &'static str { r#"(call_expression) @call"# }
+    fn id(&self) -> &'static str {
+        "CTL_UNNECESSARY_CLONE"
+    }
+    fn config_key(&self) -> &'static str {
+        "unnecessary-clone"
+    }
+    fn description(&self) -> &'static str {
+        "unnecessary .clone()"
+    }
+    fn default_level(&self) -> DiagnosticLevel {
+        DiagnosticLevel::Warn
+    }
+    fn query_str(&self) -> &'static str {
+        r#"(call_expression) @call"#
+    }
     fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
         let call_node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
-        let Some(node) = call_node else { return vec![]; };
+        let Some(node) = call_node else {
+            return vec![];
+        };
         let func_node = node.child_by_field_name("function");
-        let Some(func) = func_node else { return vec![]; };
-        if func.kind() != "field_expression" { return vec![]; }
+        let Some(func) = func_node else {
+            return vec![];
+        };
+        if func.kind() != "field_expression" {
+            return vec![];
+        }
         let field_child = func.child_by_field_name("field");
-        let Some(field) = field_child else { return vec![]; };
-        if field.utf8_text(ctx.source).unwrap_or("") != "clone" { return vec![]; }
+        let Some(field) = field_child else {
+            return vec![];
+        };
+        if field.utf8_text(ctx.source).unwrap_or("") != "clone" {
+            return vec![];
+        }
         let object = func.child_by_field_name("value");
-        let Some(obj) = object else { return vec![]; };
-        if obj.kind() != "identifier" { return vec![]; }
+        let Some(obj) = object else {
+            return vec![];
+        };
+        if obj.kind() != "identifier" {
+            return vec![];
+        }
         let obj_text = obj.utf8_text(ctx.source).unwrap_or("");
         let parent = node.parent();
         let is_let_rhs = parent.map(|p| p.kind() == "let_declaration").unwrap_or(false);
-        if !is_let_rhs { return vec![]; }
+        if !is_let_rhs {
+            return vec![];
+        }
         let let_parent = parent.unwrap();
         let scope_parent = let_parent.parent();
-        let Some(scope) = scope_parent else { return vec![]; };
+        let Some(scope) = scope_parent else {
+            return vec![];
+        };
         let clone_end = node.end_byte();
         let mut descendants = Vec::new();
         collect_descendants(scope, &mut descendants);
@@ -49,7 +77,9 @@ impl Rule for UnnecessaryClone {
             vec![Diagnostic {
                 rule_id: self.id().into(),
                 level: self.default_level(),
-                message: format!("value `{obj_text}` cloned but not reused — consider borrowing instead"),
+                message: format!(
+                    "value `{obj_text}` cloned but not reused — consider borrowing instead"
+                ),
                 file_path: ctx.file_path.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column + 1,
@@ -57,7 +87,9 @@ impl Rule for UnnecessaryClone {
                 end_column: node.end_position().column + 1,
                 suggestion: None,
             }]
-        } else { vec![] }
+        } else {
+            vec![]
+        }
     }
 }
 

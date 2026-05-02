@@ -6,10 +6,18 @@ use tree_sitter::{Node, QueryMatch};
 pub struct DeadTestHelper;
 
 impl Rule for DeadTestHelper {
-    fn id(&self) -> &'static str { "CTL_DEAD_TEST_HELPER" }
-    fn config_key(&self) -> &'static str { "dead-test-helper" }
-    fn description(&self) -> &'static str { "unused test helper" }
-    fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
+    fn id(&self) -> &'static str {
+        "CTL_DEAD_TEST_HELPER"
+    }
+    fn config_key(&self) -> &'static str {
+        "dead-test-helper"
+    }
+    fn description(&self) -> &'static str {
+        "unused test helper"
+    }
+    fn default_level(&self) -> DiagnosticLevel {
+        DiagnosticLevel::Warn
+    }
     fn query_str(&self) -> &'static str {
         r#"(mod_item
             name: (identifier) @mod_name
@@ -19,11 +27,17 @@ impl Rule for DeadTestHelper {
         let name_node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
         let body_node = query_match.captures.iter().find(|c| c.index == 1).map(|c| c.node);
         let mod_node = query_match.captures.iter().find(|c| c.index == 2).map(|c| c.node);
-        let (Some(node), Some(name), Some(body)) = (mod_node, name_node, body_node) else { return vec![]; };
+        let (Some(node), Some(name), Some(body)) = (mod_node, name_node, body_node) else {
+            return vec![];
+        };
         let mod_name = name.utf8_text(ctx.source).unwrap_or("");
-        if !is_test_module(&node, ctx.source, mod_name) { return vec![]; }
+        if !is_test_module(&node, ctx.source, mod_name) {
+            return vec![];
+        }
         let definitions = collect_definitions(&body, ctx.source);
-        if definitions.is_empty() { return vec![]; }
+        if definitions.is_empty() {
+            return vec![];
+        }
         let references = collect_references(&body, ctx.source);
         let mut diagnostics = Vec::new();
         for (def_name, def_node) in &definitions {
@@ -31,7 +45,9 @@ impl Rule for DeadTestHelper {
                 diagnostics.push(Diagnostic {
                     rule_id: self.id().into(),
                     level: self.default_level(),
-                    message: format!("unused test helper `{def_name}` — defined but never referenced"),
+                    message: format!(
+                        "unused test helper `{def_name}` — defined but never referenced"
+                    ),
                     file_path: ctx.file_path.to_path_buf(),
                     line: def_node.start_position().row + 1,
                     column: def_node.start_position().column + 1,
@@ -46,12 +62,16 @@ impl Rule for DeadTestHelper {
 }
 
 fn is_test_module(node: &Node, source: &[u8], name: &str) -> bool {
-    if name == "tests" || name == "test" { return true; }
+    if name == "tests" || name == "test" {
+        return true;
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "attribute_item" {
             let text = child.utf8_text(source).unwrap_or("");
-            if text.contains("cfg(test)") { return true; }
+            if text.contains("cfg(test)") {
+                return true;
+            }
         }
     }
     false
@@ -63,11 +83,15 @@ fn collect_definitions<'a>(body: &Node<'a>, source: &[u8]) -> Vec<(String, Node<
     for child in body.named_children(&mut cursor) {
         let kind = child.kind();
         let name_field = match kind {
-            "function_item" | "struct_item" | "enum_item" | "type_item" | "trait_item" => child.child_by_field_name("name"),
+            "function_item" | "struct_item" | "enum_item" | "type_item" | "trait_item" => {
+                child.child_by_field_name("name")
+            }
             _ => None,
         };
         if let Some(name_node) = name_field {
-            if has_test_attr(&child, source) { continue; }
+            if has_test_attr(&child, source) {
+                continue;
+            }
             let name = name_node.utf8_text(source).unwrap_or("").to_string();
             defs.push((name, child));
         }
@@ -81,7 +105,9 @@ fn has_test_attr(node: &Node, source: &[u8]) -> bool {
     for child in node.children(&mut cursor) {
         if child.kind() == "attribute_item" {
             let text = child.utf8_text(source).unwrap_or("");
-            if text.contains("test") { return true; }
+            if text.contains("test") {
+                return true;
+            }
         }
     }
     // Also check preceding siblings for attribute_item
@@ -89,7 +115,9 @@ fn has_test_attr(node: &Node, source: &[u8]) -> bool {
     while let Some(sib) = prev {
         if sib.kind() == "attribute_item" {
             let text = sib.utf8_text(source).unwrap_or("");
-            if text.contains("test") { return true; }
+            if text.contains("test") {
+                return true;
+            }
             prev = sib.prev_sibling();
         } else {
             break;
@@ -104,7 +132,9 @@ fn collect_references(body: &Node, source: &[u8]) -> HashSet<String> {
     find_descendants(*body, &mut all);
     for node in all {
         if node.kind() == "identifier" || node.kind() == "type_identifier" {
-            if is_def_name(&node) { continue; }
+            if is_def_name(&node) {
+                continue;
+            }
             let text = node.utf8_text(source).unwrap_or("");
             refs.insert(text.to_string());
         }
@@ -113,9 +143,14 @@ fn collect_references(body: &Node, source: &[u8]) -> HashSet<String> {
 }
 
 fn is_def_name(node: &Node) -> bool {
-    let Some(parent) = node.parent() else { return false; };
+    let Some(parent) = node.parent() else {
+        return false;
+    };
     if parent.child_by_field_name("name").map(|n| n.id()) == Some(node.id()) {
-        matches!(parent.kind(), "function_item" | "struct_item" | "enum_item" | "type_item" | "trait_item")
+        matches!(
+            parent.kind(),
+            "function_item" | "struct_item" | "enum_item" | "type_item" | "trait_item"
+        )
     } else {
         false
     }

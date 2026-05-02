@@ -28,11 +28,7 @@ impl Rule for StaticMut {
     }
 
     fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
-        let node = query_match
-            .captures
-            .iter()
-            .find(|c| c.index == 0)
-            .map(|c| c.node);
+        let node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
 
         let Some(node) = node else {
             return vec![];
@@ -41,7 +37,8 @@ impl Rule for StaticMut {
         vec![Diagnostic {
             rule_id: self.id().into(),
             level: self.default_level(),
-            message: "static mutable variable — incompatible with nextest parallel execution".into(),
+            message: "static mutable variable — incompatible with nextest parallel execution"
+                .into(),
             file_path: ctx.file_path.to_path_buf(),
             line: node.start_position().row + 1,
             column: node.start_position().column + 1,
@@ -81,11 +78,7 @@ impl Rule for EnvSetVar {
     }
 
     fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
-        let node = query_match
-            .captures
-            .iter()
-            .find(|c| c.index == 0)
-            .map(|c| c.node);
+        let node = query_match.captures.iter().find(|c| c.index == 0).map(|c| c.node);
 
         let Some(node) = node else {
             return vec![];
