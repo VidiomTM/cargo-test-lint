@@ -49,7 +49,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_source_returns_none_for_invalid() {
+    fn parse_source_returns_tree_even_for_invalid() {
+        // tree-sitter always returns a tree with ERROR nodes for invalid input
         let source = b"fn main() {";
         let tree = parse_source(source);
         assert!(tree.is_some());
