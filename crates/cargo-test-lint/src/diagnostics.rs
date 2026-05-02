@@ -6,6 +6,7 @@ use std::path::PathBuf;
 pub enum DiagnosticLevel {
     Allow,
     Warn,
+    #[serde(alias = "error")]
     Deny,
     Forbid,
 }
@@ -38,7 +39,7 @@ impl std::str::FromStr for DiagnosticLevel {
         match s {
             "allow" => Ok(Self::Allow),
             "warn" => Ok(Self::Warn),
-            "deny" => Ok(Self::Deny),
+            "deny" | "error" => Ok(Self::Deny),
             "forbid" => Ok(Self::Forbid),
             _ => Err(format!("invalid level: {s}")),
         }
@@ -87,6 +88,7 @@ mod tests {
         assert_eq!("allow".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Allow);
         assert_eq!("warn".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Warn);
         assert_eq!("deny".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Deny);
+        assert_eq!("error".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Deny);
         assert_eq!("forbid".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Forbid);
         assert!("invalid".parse::<DiagnosticLevel>().is_err());
     }

@@ -1,43 +1,31 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
 use crate::diagnostics::DiagnosticLevel;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case", default)]
 pub struct Config {
-    #[serde(default)]
-    pub rules: HashMap<String, RuleConfig>,
-    #[serde(default)]
+    pub rules: HashMap<String, DiagnosticLevel>,
     pub max_expects: usize,
-    #[serde(default)]
     pub max_nested_mod: usize,
-    #[serde(default)]
     pub nextest: bool,
-    #[serde(default)]
     pub deny_warnings: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RuleConfig {
-    Level(DiagnosticLevel),
-    Threshold(usize),
 }
 
 impl Default for Config {
     fn default() -> Self {
         let mut rules = HashMap::new();
-        rules.insert("assertion-roulette".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("sleepy-test".into(), RuleConfig::Level(DiagnosticLevel::Forbid));
-        rules.insert("test-branching".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("async-blocking".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("unnecessary-clone".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("deep-wrapper".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("missing-drop-guard".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("dead-test-helper".into(), RuleConfig::Level(DiagnosticLevel::Warn));
-        rules.insert("nextest-compatibility".into(), RuleConfig::Level(DiagnosticLevel::Warn));
+        rules.insert("assertion-roulette".into(), DiagnosticLevel::Warn);
+        rules.insert("sleepy-test".into(), DiagnosticLevel::Forbid);
+        rules.insert("test-branching".into(), DiagnosticLevel::Warn);
+        rules.insert("async-blocking".into(), DiagnosticLevel::Warn);
+        rules.insert("unnecessary-clone".into(), DiagnosticLevel::Warn);
+        rules.insert("deep-wrapper".into(), DiagnosticLevel::Warn);
+        rules.insert("missing-drop-guard".into(), DiagnosticLevel::Warn);
+        rules.insert("dead-test-helper".into(), DiagnosticLevel::Warn);
+        rules.insert("nextest-compatibility".into(), DiagnosticLevel::Warn);
 
         Self { rules, max_expects: 5, max_nested_mod: 3, nextest: false, deny_warnings: false }
     }
@@ -45,14 +33,11 @@ impl Default for Config {
 
 impl Config {
     pub fn rule_level(&self, rule_id: &str, default: DiagnosticLevel) -> DiagnosticLevel {
-        match self.rules.get(rule_id) {
-            Some(RuleConfig::Level(level)) => level.clone(),
-            _ => default,
-        }
+        self.rules.get(rule_id).cloned().unwrap_or(default)
     }
 
     pub fn rule_enabled(&self, rule_id: &str) -> bool {
-        !matches!(self.rules.get(rule_id), Some(RuleConfig::Level(DiagnosticLevel::Allow)))
+        !matches!(self.rules.get(rule_id), Some(DiagnosticLevel::Allow))
     }
 }
 
@@ -79,18 +64,18 @@ pub fn load(project_root: &Path) -> Config {
         cargo_test_lint: Option<Config>,
     }
 
-    // Try workspace-level lints first, then package-level
+    // Package-level lints take precedence over workspace-level (RFC 3389)
     if let Ok(manifest) = toml::from_str::<Manifest>(&content) {
+        if let Some(lints) = manifest.lints {
+            if let Some(config) = lints.cargo_test_lint {
+                return config;
+            }
+        }
         if let Some(ws) = manifest.workspace {
             if let Some(lints) = ws.lints {
                 if let Some(config) = lints.cargo_test_lint {
                     return config;
                 }
-            }
-        }
-        if let Some(lints) = manifest.lints {
-            if let Some(config) = lints.cargo_test_lint {
-                return config;
             }
         }
     }
@@ -123,7 +108,7 @@ mod tests {
     #[test]
     fn rule_enabled_false_when_allowed() {
         let mut config = Config::default();
-        config.rules.insert("test-rule".into(), RuleConfig::Level(DiagnosticLevel::Allow));
+        config.rules.insert("test-rule".into(), DiagnosticLevel::Allow);
         assert!(!config.rule_enabled("test-rule"));
     }
 

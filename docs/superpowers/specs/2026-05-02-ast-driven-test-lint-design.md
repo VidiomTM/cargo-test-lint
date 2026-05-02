@@ -27,7 +27,7 @@ The pivot replaces this with a fast, standalone AST-driven linter that detects t
 
 ### 2.1 Module Structure
 
-```
+```text
 src/
 ├── main.rs              # CLI entry point (clap)
 ├── lib.rs               # Module re-exports
@@ -257,7 +257,7 @@ pub enum DiagnosticLevel {
 
 Colored, human-readable output:
 
-```
+```text
 warning[CTL_ASSERT_MSG]: assertion missing context message
   --> src/lib.rs:42:9
    |
@@ -294,7 +294,7 @@ Compatible with GitHub Actions Code Scanning, VS Code SARIF viewer.
 
 ## 7. CLI Interface
 
-```
+```text
 cargo test-lint [OPTIONS]
 
 Options:

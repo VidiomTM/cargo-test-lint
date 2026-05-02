@@ -302,10 +302,7 @@ fn test_foo() {
     use crate::rules::test_rule_with_config;
 
     fn config_with_max(max: usize) -> Config {
-        Config {
-            max_expects: max,
-            ..Default::default()
-        }
+        Config { max_expects: max, ..Default::default() }
     }
 
     #[test]

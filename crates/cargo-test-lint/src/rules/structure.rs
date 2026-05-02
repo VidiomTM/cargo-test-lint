@@ -92,10 +92,7 @@ mod tests {
     use crate::rules::test_rule_with_config;
 
     fn config_with_max(max: usize) -> Config {
-        Config {
-            max_nested_mod: max,
-            ..Default::default()
-        }
+        Config { max_nested_mod: max, ..Default::default() }
     }
 
     #[test]
