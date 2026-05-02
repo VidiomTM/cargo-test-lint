@@ -22,6 +22,8 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build --workspace --release
+      - name: Self-lint
+        run: cargo run --bin cargo-test-lint -- test-lint --project-root .
 
   lint:
     runs-on: ubuntu-latest
