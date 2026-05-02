@@ -113,12 +113,94 @@ fn build_suggestion(name: &[u8], token_tree: &tree_sitter::Node, source: &[u8]) 
 }
 
 impl Rule for MaxExpects {
-    fn id(&self) -> &'static str { "CTL_MAX_EXPECTS" }
-    fn config_key(&self) -> &'static str { "max-expects" }
-    fn description(&self) -> &'static str { "too many assertions in test" }
-    fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
-    fn query_str(&self) -> &'static str { "(function_item) @fn" }
-    fn validate(&self, _ctx: &RuleContext, _qm: &QueryMatch) -> Vec<Diagnostic> { vec![] }
+    fn id(&self) -> &'static str {
+        "CTL_MAX_EXPECTS"
+    }
+
+    fn config_key(&self) -> &'static str {
+        "max-expects"
+    }
+
+    fn description(&self) -> &'static str {
+        "too many assertions in test"
+    }
+
+    fn default_level(&self) -> DiagnosticLevel {
+        DiagnosticLevel::Warn
+    }
+
+    fn query_str(&self) -> &'static str {
+        r#"((attribute_item
+            (attribute
+                (identifier) @attr_name
+                (#eq? @attr_name "test")))
+            .
+            (function_item
+                name: (identifier) @fn_name
+                body: (block) @body) @fn)"#
+    }
+
+    fn validate(&self, ctx: &RuleContext, query_match: &QueryMatch) -> Vec<Diagnostic> {
+        let body_capture = query_match.captures.iter().find(|c| c.index == 2);
+        let fn_capture = query_match.captures.iter().find(|c| c.index == 3);
+
+        let (Some(body_node), Some(fn_node)) = (body_capture.map(|c| c.node), fn_capture.map(|c| c.node)) else {
+            return vec![];
+        };
+
+        let threshold = ctx.config.max_expects;
+        if threshold == 0 {
+            return vec![];
+        }
+
+        let assert_count = count_assertions(&body_node, ctx.source);
+
+        if assert_count > threshold {
+            let line = fn_node.start_position().row + 1;
+            let col = fn_node.start_position().column + 1;
+
+            vec![Diagnostic {
+                rule_id: self.id().into(),
+                level: self.default_level(),
+                message: format!(
+                    "test has {assert_count} assertions (max {threshold}) — consider splitting"
+                ),
+                file_path: ctx.file_path.to_path_buf(),
+                line,
+                column: col,
+                end_line: fn_node.end_position().row + 1,
+                end_column: fn_node.end_position().column + 1,
+                suggestion: None,
+            }]
+        } else {
+            vec![]
+        }
+    }
+}
+
+fn count_assertions(body: &tree_sitter::Node, source: &[u8]) -> usize {
+    let mut count = 0;
+    count_assertions_inner(body, source, &mut count);
+    count
+}
+
+fn count_assertions_inner(
+    node: &tree_sitter::Node,
+    source: &[u8],
+    count: &mut usize,
+) {
+    if node.kind() == "macro_invocation" {
+        if let Some(name_node) = node.child_by_field_name("macro") {
+            let name = name_node.utf8_text(source).unwrap_or("");
+            if name.starts_with("assert") {
+                *count += 1;
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        count_assertions_inner(&child, source, count);
+    }
 }
 
 #[cfg(test)]
@@ -216,5 +298,77 @@ fn test_foo() {
         assert_eq!(diags.len(), 1);
         let fix = diags[0].suggestion.as_ref().unwrap();
         assert!(fix.replacement.contains("TODO: add context message"));
+    }
+
+    // MaxExpects tests
+    use crate::rules::test_rule_with_config;
+    use crate::config::Config;
+
+    fn config_with_max(max: usize) -> Config {
+        let mut config = Config::default();
+        config.max_expects = max;
+        config
+    }
+
+    #[test]
+    fn under_threshold_passes() {
+        let source = r#"
+#[test]
+fn test_foo() {
+    assert!(true);
+    assert_eq!(1, 1);
+}
+"#;
+        let config = config_with_max(5);
+        let diags = test_rule_with_config(&MaxExpects, source, config);
+        assert_eq!(diags.len(), 0);
+    }
+
+    #[test]
+    fn over_threshold_flagged() {
+        let source = r#"
+#[test]
+fn test_foo() {
+    assert!(true);
+    assert!(true);
+    assert!(true);
+    assert!(true);
+    assert!(true);
+    assert!(true);
+}
+"#;
+        let config = config_with_max(5);
+        let diags = test_rule_with_config(&MaxExpects, source, config);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("6 assertions"));
+        assert!(diags[0].message.contains("max 5"));
+    }
+
+    #[test]
+    fn at_threshold_passes() {
+        let source = r#"
+#[test]
+fn test_foo() {
+    assert!(true);
+    assert!(true);
+    assert!(true);
+}
+"#;
+        let config = config_with_max(3);
+        let diags = test_rule_with_config(&MaxExpects, source, config);
+        assert_eq!(diags.len(), 0);
+    }
+
+    #[test]
+    fn zero_threshold_disables_check() {
+        let source = r#"
+#[test]
+fn test_foo() {
+    assert!(true);
+}
+"#;
+        let config = config_with_max(0);
+        let diags = test_rule_with_config(&MaxExpects, source, config);
+        assert_eq!(diags.len(), 0);
     }
 }
