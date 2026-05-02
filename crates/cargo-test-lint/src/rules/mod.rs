@@ -24,6 +24,7 @@ pub struct RuleContext<'a> {
 
 pub trait Rule {
     fn id(&self) -> &'static str;
+    fn config_key(&self) -> &'static str;
     fn description(&self) -> &'static str;
     fn default_level(&self) -> DiagnosticLevel;
     fn query_str(&self) -> &'static str;
@@ -31,7 +32,7 @@ pub trait Rule {
 }
 
 pub fn run_rule<'a>(rule: &dyn Rule, ctx: &RuleContext<'a>) -> Vec<Diagnostic> {
-    let level = ctx.config.rule_level(rule.id(), rule.default_level());
+    let level = ctx.config.rule_level(rule.config_key(), rule.default_level());
     if level == DiagnosticLevel::Allow {
         return vec![];
     }
@@ -74,7 +75,7 @@ pub fn run_all_rules(ctx: &RuleContext) -> Vec<Diagnostic> {
 
     let mut diagnostics = Vec::new();
     for rule in &rules {
-        if ctx.config.rule_enabled(rule.id()) {
+        if ctx.config.rule_enabled(rule.config_key()) {
             diagnostics.extend(run_rule(rule.as_ref(), ctx));
         }
     }

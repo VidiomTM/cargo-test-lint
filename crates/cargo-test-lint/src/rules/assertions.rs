@@ -7,6 +7,7 @@ pub struct MaxExpects;
 
 impl Rule for AssertMsg {
     fn id(&self) -> &'static str { "CTL_ASSERT_MSG" }
+    fn config_key(&self) -> &'static str { "assertion-roulette" }
     fn description(&self) -> &'static str { "assertion missing context message" }
     fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
     fn query_str(&self) -> &'static str { "(macro_invocation) @macro" }
@@ -15,6 +16,7 @@ impl Rule for AssertMsg {
 
 impl Rule for MaxExpects {
     fn id(&self) -> &'static str { "CTL_MAX_EXPECTS" }
+    fn config_key(&self) -> &'static str { "max-expects" }
     fn description(&self) -> &'static str { "too many assertions in test" }
     fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
     fn query_str(&self) -> &'static str { "(function_item) @fn" }

@@ -7,6 +7,7 @@ pub struct EnvSetVar;
 
 impl Rule for StaticMut {
     fn id(&self) -> &'static str { "CTL_STATIC_MUT" }
+    fn config_key(&self) -> &'static str { "static-mut" }
     fn description(&self) -> &'static str { "static mutable variable" }
     fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
     fn query_str(&self) -> &'static str { "(static_item) @static" }
@@ -15,6 +16,7 @@ impl Rule for StaticMut {
 
 impl Rule for EnvSetVar {
     fn id(&self) -> &'static str { "CTL_ENV_SET_VAR" }
+    fn config_key(&self) -> &'static str { "env-set-var" }
     fn description(&self) -> &'static str { "std::env::set_var in test" }
     fn default_level(&self) -> DiagnosticLevel { DiagnosticLevel::Warn }
     fn query_str(&self) -> &'static str { "(call_expression) @call" }
