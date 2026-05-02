@@ -302,9 +302,10 @@ fn test_foo() {
     use crate::rules::test_rule_with_config;
 
     fn config_with_max(max: usize) -> Config {
-        let mut config = Config::default();
-        config.max_expects = max;
-        config
+        Config {
+            max_expects: max,
+            ..Default::default()
+        }
     }
 
     #[test]
