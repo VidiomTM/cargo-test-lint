@@ -1,6 +1,6 @@
 # Rule Reference
 
-All 12 rules in cargo-test-lint v0.2.0.
+All 15 rules in cargo-test-lint v0.2.0.
 
 ## Assertion Roulette
 
@@ -340,50 +340,6 @@ deep-wrapper = "allow"
 
 ---
 
-## Missing Drop Guard
-
-**ID:** `missing-drop-guard`  
-**Default:** `warn`  
-**Category:** Drop
-
-Resource allocation without RAII binding. Resources may leak if test panics.
-
-### Bad
-
-```rust
-#[test]
-fn test_file() {
-    let path = "/tmp/test.txt";
-    std::fs::write(path, "hello").unwrap();
-    // file not cleaned up if assertion below panics
-    let content = std::fs::read_to_string(path).unwrap();
-    assert_eq!(content, "hello");
-    std::fs::remove_file(path).unwrap();
-}
-```
-
-### Good
-
-```rust
-#[test]
-fn test_file() {
-    let file = tempfile::NamedTempFile::new().unwrap();
-    std::fs::write(file.path(), "hello").unwrap();
-    let content = std::fs::read_to_string(file.path()).unwrap();
-    assert_eq!(content, "hello");
-    // file automatically cleaned up
-}
-```
-
-### Config
-
-```toml
-[lints.cargo-test-lint.rules]
-missing-drop-guard = "deny"
-```
-
----
-
 ## Dead Test Helper
 
 **ID:** `dead-test-helper`  
@@ -515,4 +471,140 @@ nextest = true
 
 [lints.cargo-test-lint.rules]
 env-set-var = "deny"
+```
+
+---
+
+## Missing Drop Guard
+
+**ID:** `missing-drop-guard`  
+**Default:** `warn`  
+**Category:** Resource Safety
+
+Resource-allocating call (`TempDir::new`, `tempfile::tempdir`, `NamedTempFile::new`) not bound to a variable. The resource will be dropped immediately, causing test flakiness.
+
+### Bad
+
+```rust
+#[test]
+fn test_file() {
+    TempDir::new().unwrap();  // dropped immediately!
+    write_file("data.txt");    // dir may already be gone
+}
+```
+
+### Good
+
+```rust
+#[test]
+fn test_file() {
+    let dir = TempDir::new().unwrap();  // bound — lives until end of scope
+    write_file(dir.path().join("data.txt"));
+}
+```
+
+### Detected Patterns
+
+- `TempDir::new()`, `tempfile::tempdir()`, `NamedTempFile::new()` as standalone expressions or passed as arguments without being bound to a `let` binding.
+
+### Config
+
+```toml
+[lints.cargo-test-lint.rules]
+missing-drop-guard = "deny"
+```
+
+---
+
+## String Literal Corpus
+
+**ID:** `string-literal-corpus`  
+**Default:** `warn`  
+**Category:** Semantic
+
+Test corpus code (Python, JS, etc.) embedded in a Rust string literal inside a test function. Embedded code is invisible to the Rust AST parser and should live in separate fixture files.
+
+### Bad
+
+```rust
+#[test]
+fn test_parse() {
+    let input = r#"
+import pytest
+from myapp import Calculator
+
+def test_addition():
+    calc = Calculator()
+    assert calc.add(2, 3) == 5
+"#;
+    let ast = parse(input);
+    assert_eq!(ast.len(), 3);
+}
+```
+
+### Good
+
+```rust
+#[test]
+fn test_parse() {
+    let input = include_str!("../fixtures/calculator_test.py");
+    let ast = parse(input);
+    assert_eq!(ast.len(), 3);
+}
+```
+
+### Detected Signals
+
+- `def test_`, `it(`, `describe(`, `import pytest`, `from pytest`, `from vitest`, `import vitest` inside string literals ≥40 chars within test context.
+
+### Config
+
+```toml
+[lints.cargo-test-lint.rules]
+string-literal-corpus = "allow"  # suppress if fixture approach not feasible
+```
+
+---
+
+## FS IO in Test
+
+**ID:** `fs-io-in-test`  
+**Default:** `warn`  
+**Category:** Semantic
+
+Direct `std::fs::*` / `fs::*` calls inside test functions. These introduce filesystem flakiness. Prefer `tempfile` APIs or in-memory I/O.
+
+### Bad
+
+```rust
+#[test]
+fn test_config() {
+    std::fs::write("config.toml", "key = value").unwrap();
+    let cfg = load_config("config.toml");
+    assert_eq!(cfg.key, "value");
+    // file leaked to working directory!
+}
+```
+
+### Good
+
+```rust
+#[test]
+fn test_config() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("config.toml"), "key = value").unwrap();
+    let cfg = load_config(dir.path().join("config.toml"));
+    assert_eq!(cfg.key, "value");
+}
+```
+
+### Detected Patterns
+
+- `std::fs::write`, `std::fs::read`, `std::fs::read_to_string`, `std::fs::remove_file`, `std::fs::create_dir`, `std::fs::remove_dir`, `std::fs::rename`, and their short-form `fs::*` equivalents.
+
+### Config
+
+```toml
+[lints.cargo-test-lint.rules]
+fs-io-in-test = "allow"
 ```

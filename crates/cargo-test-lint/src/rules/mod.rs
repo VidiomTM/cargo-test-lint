@@ -5,7 +5,9 @@ pub mod complexity;
 pub mod dead_code;
 pub mod drop;
 pub mod flow;
+pub mod fsio;
 pub mod nextest;
+pub mod semantic;
 pub mod sleep;
 pub mod structure;
 
@@ -71,6 +73,8 @@ pub fn run_all_rules(ctx: &RuleContext) -> Vec<Diagnostic> {
         Box::new(complexity::DeepWrapper),
         Box::new(drop::MissingDropGuard),
         Box::new(dead_code::DeadTestHelper),
+        Box::new(semantic::StringLiteralCorpus),
+        Box::new(fsio::FsIoInTest),
     ];
 
     let mut diagnostics = Vec::new();
