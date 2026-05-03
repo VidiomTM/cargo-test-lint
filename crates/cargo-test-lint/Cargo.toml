@@ -23,6 +23,7 @@ tree-sitter-rust = { workspace = true }
 streaming-iterator = { workspace = true }
 anstyle = { workspace = true }
 ignore = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

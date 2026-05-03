@@ -25,6 +25,8 @@ cargo test-lint
 | Dead Test Helper | `dead-test-helper` | warn | Unused function/struct in test module |
 | Static Mut | `static-mut` | warn | `static mut` variable (incompatible with nextest) |
 | Env Set Var | `env-set-var` | warn | `std::env::set_var` in test (unsafe with nextest) |
+| String Literal Corpus | `string-literal-corpus` | warn | Test corpus code embedded in string literals |
+| Filesystem IO | `fs-io-in-test` | warn | `std::fs` calls in test (flakiness) |
 
 ## Configuration
 

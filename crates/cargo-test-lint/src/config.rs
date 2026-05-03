@@ -26,6 +26,8 @@ impl Default for Config {
         rules.insert("missing-drop-guard".into(), DiagnosticLevel::Warn);
         rules.insert("dead-test-helper".into(), DiagnosticLevel::Warn);
         rules.insert("nextest-compatibility".into(), DiagnosticLevel::Warn);
+        rules.insert("string-literal-corpus".into(), DiagnosticLevel::Warn);
+        rules.insert("fs-io-in-test".into(), DiagnosticLevel::Warn);
 
         Self { rules, max_expects: 5, max_nested_mod: 3, nextest: false, deny_warnings: false }
     }
