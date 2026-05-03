@@ -9,7 +9,9 @@ const RESOURCE_ALLOCATORS: &[&str] = &[
     "File::open",
     "TempDir::new",
     "tempfile::tempdir",
+    "tempdir",
     "tempfile::NamedTempFile::new",
+    "NamedTempFile::new",
     "Builder::new",
     "TcpListener::bind",
     "UdpSocket::bind",
@@ -99,6 +101,7 @@ fn ancestor_is_let_declaration(node: tree_sitter::Node) -> bool {
             // expression_statement or declaration_list levels,
             // not at intermediate method call nodes.
             "expression_statement" => return false,
+            "closure" => return false,
             "ERROR" => return false,
             _ => {}
         }

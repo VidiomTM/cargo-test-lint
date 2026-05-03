@@ -1,4 +1,14 @@
+use regex::Regex;
+use std::sync::LazyLock;
 use tree_sitter::Node;
+
+static TEST_ATTR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"#\s*\[\s*(?:tokio::test|async_std::test|test)(?:\s*\([^)]*\))?\s*\]").unwrap()
+});
+
+static CFG_TEST_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"#\s*\[\s*cfg\s*\(\s*[^)]*test[^)]*\)\s*\]").unwrap()
+});
 
 pub fn is_in_test_function(node: Node, source: &[u8]) -> bool {
     let mut current = node.parent();
@@ -25,10 +35,7 @@ fn has_test_attribute(node: Node, source: &[u8]) -> bool {
             break;
         }
         let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[test]")
-            || text.contains("#[tokio::test]")
-            || text.contains("#[async_std::test]")
-        {
+        if TEST_ATTR_REGEX.is_match(text) {
             return true;
         }
         sibling = attr.prev_named_sibling();
@@ -43,7 +50,7 @@ fn has_cfg_test_attribute(node: Node, source: &[u8]) -> bool {
             break;
         }
         let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[cfg(test)]") {
+        if CFG_TEST_REGEX.is_match(text) {
             return true;
         }
         sibling = attr.prev_named_sibling();
