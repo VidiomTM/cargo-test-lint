@@ -1,3 +1,4 @@
+use super::test_context::is_in_test_function;
 use super::{Rule, RuleContext};
 use crate::diagnostics::{Diagnostic, DiagnosticLevel};
 use tree_sitter::QueryMatch;
@@ -15,6 +16,10 @@ const FS_IO_METHODS: &[&str] = &[
     "fs::write",
     "fs::read",
     "fs::read_to_string",
+    "fs::remove_file",
+    "fs::create_dir",
+    "fs::remove_dir",
+    "fs::rename",
 ];
 
 impl Rule for FsIoInTest {
@@ -42,8 +47,8 @@ impl Rule for FsIoInTest {
         let Some(func) = func_node else {
             return vec![];
         };
-        let func_text = func.utf8_text(ctx.source).unwrap_or("");
-        if !FS_IO_METHODS.contains(&func_text) {
+        let func_text = func.utf8_text(ctx.source).unwrap_or("").replace(' ', "");
+        if !FS_IO_METHODS.contains(&func_text.as_str()) {
             return vec![];
         }
 
@@ -65,59 +70,6 @@ impl Rule for FsIoInTest {
             suggestion: None,
         }]
     }
-}
-
-fn is_in_test_function(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut current = node.parent();
-    while let Some(parent) = current {
-        match parent.kind() {
-            "function_item" | "function_signature"
-                if has_test_attribute(parent, source) => {
-                    return true;
-                }
-            "mod_item"
-                if has_cfg_test_attribute(parent, source) => {
-                    return true;
-                }
-            "source_file" => return false,
-            _ => {}
-        }
-        current = parent.parent();
-    }
-    false
-}
-
-fn has_test_attribute(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut sibling = node.prev_named_sibling();
-    while let Some(attr) = sibling {
-        if attr.kind() != "attribute_item" {
-            break;
-        }
-        let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[test]")
-            || text.contains("#[tokio::test]")
-            || text.contains("#[async_std::test]")
-        {
-            return true;
-        }
-        sibling = attr.prev_named_sibling();
-    }
-    false
-}
-
-fn has_cfg_test_attribute(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut sibling = node.prev_named_sibling();
-    while let Some(attr) = sibling {
-        if attr.kind() != "attribute_item" {
-            break;
-        }
-        let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[cfg(test)]") {
-            return true;
-        }
-        sibling = attr.prev_named_sibling();
-    }
-    false
 }
 
 #[cfg(test)]

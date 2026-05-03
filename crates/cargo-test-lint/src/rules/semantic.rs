@@ -1,3 +1,4 @@
+use super::test_context::is_in_test_function;
 use super::{Rule, RuleContext};
 use crate::diagnostics::{Diagnostic, DiagnosticLevel};
 use tree_sitter::QueryMatch;
@@ -6,8 +7,11 @@ pub struct StringLiteralCorpus;
 
 const EMBEDDED_TEST_SIGNALS: &[&str] = &[
     "def test_",
-    "it(",
-    "describe(",
+    "it('",
+    "it(\"",
+    "describe('",
+    "describe(\"",
+    "expect(",
     "import pytest",
     "from pytest",
     "from vitest",
@@ -48,7 +52,7 @@ impl Rule for StringLiteralCorpus {
             return vec![];
         }
 
-        if !is_in_test_context(node, ctx.source) {
+        if !is_in_test_function(node, ctx.source) {
             return vec![];
         }
 
@@ -67,59 +71,6 @@ impl Rule for StringLiteralCorpus {
             suggestion: None,
         }]
     }
-}
-
-fn is_in_test_context(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut current = node.parent();
-    while let Some(parent) = current {
-        match parent.kind() {
-            "function_item" | "function_signature"
-                if has_test_attribute(parent, source) => {
-                    return true;
-                }
-            "mod_item"
-                if has_cfg_test_attribute(parent, source) => {
-                    return true;
-                }
-            "source_file" | "ERROR" => return false,
-            _ => {}
-        }
-        current = parent.parent();
-    }
-    false
-}
-
-fn has_test_attribute(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut sibling = node.prev_named_sibling();
-    while let Some(attr) = sibling {
-        if attr.kind() != "attribute_item" {
-            break;
-        }
-        let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[test]")
-            || text.contains("#[tokio::test]")
-            || text.contains("#[async_std::test]")
-        {
-            return true;
-        }
-        sibling = attr.prev_named_sibling();
-    }
-    false
-}
-
-fn has_cfg_test_attribute(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut sibling = node.prev_named_sibling();
-    while let Some(attr) = sibling {
-        if attr.kind() != "attribute_item" {
-            break;
-        }
-        let text = attr.utf8_text(source).unwrap_or("");
-        if text.contains("#[cfg(test)]") {
-            return true;
-        }
-        sibling = attr.prev_named_sibling();
-    }
-    false
 }
 
 #[cfg(test)]

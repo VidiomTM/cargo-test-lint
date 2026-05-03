@@ -10,6 +10,7 @@ pub mod nextest;
 pub mod semantic;
 pub mod sleep;
 pub mod structure;
+pub mod test_context;
 
 use crate::config::Config;
 use crate::diagnostics::{Diagnostic, DiagnosticLevel};
@@ -87,7 +88,6 @@ pub fn run_all_rules(ctx: &RuleContext) -> Vec<Diagnostic> {
     diagnostics
 }
 
-/// Helper for tests: parse a snippet and run a single rule, returning diagnostics.
 #[cfg(test)]
 pub fn test_rule(rule: &dyn Rule, source: &str) -> Vec<Diagnostic> {
     let tree = crate::parser::parse_source(source.as_bytes()).unwrap();
@@ -101,7 +101,6 @@ pub fn test_rule(rule: &dyn Rule, source: &str) -> Vec<Diagnostic> {
     run_rule(rule, &ctx)
 }
 
-/// Helper for tests: parse a snippet and run a single rule with custom config.
 #[cfg(test)]
 pub fn test_rule_with_config(rule: &dyn Rule, source: &str, config: Config) -> Vec<Diagnostic> {
     let tree = crate::parser::parse_source(source.as_bytes()).unwrap();

@@ -41,7 +41,9 @@ impl Rule for MissingDropGuard {
             return vec![];
         };
         let func_text = func.utf8_text(ctx.source).unwrap_or("");
-        let is_resource = RESOURCE_ALLOCATORS.iter().any(|alloc| func_text.contains(alloc));
+        let is_resource = RESOURCE_ALLOCATORS
+            .iter()
+            .any(|alloc| func_text == *alloc || func_text.ends_with(&format!("::{alloc}")));
         if !is_resource {
             return vec![];
         }
@@ -82,7 +84,16 @@ fn ancestor_is_let_declaration(node: tree_sitter::Node) -> bool {
     let mut current = node.parent();
     while let Some(parent) = current {
         match parent.kind() {
-            "let_declaration" => return true,
+            "let_declaration" => {
+                let is_wildcard = parent
+                    .child_by_field_name("pattern")
+                    .map(|p| p.kind() == "_" || p.kind() == "wildcard_pattern")
+                    .unwrap_or(false);
+                if is_wildcard {
+                    return false;
+                }
+                return true;
+            }
             // If we hit a statement that is NOT a let, the call chain
             // is not bound. But only stop at direct children of
             // expression_statement or declaration_list levels,
@@ -123,7 +134,8 @@ mod tests {
 
     #[test]
     fn bound_with_question_mark_passes() {
-        let source = r#"#[test] fn test_foo() -> Result<(), Error> { let dir = TempDir::new()?; Ok(()) }"#;
+        let source =
+            r#"#[test] fn test_foo() -> Result<(), Error> { let dir = TempDir::new()?; Ok(()) }"#;
         assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
     }
 
@@ -166,6 +178,13 @@ mod tests {
     }
 
     #[test]
+    fn wildcard_let_flagged() {
+        let source = r#"#[test] fn test_foo() { let _ = TempDir::new().unwrap(); }"#;
+        let diags = test_rule(&MissingDropGuard, source);
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
     fn passed_as_argument_not_let_bound_still_flagged() {
         // Even though the function call itself is an argument,
         // the value is not stored in a let binding that lives
@@ -176,7 +195,8 @@ mod tests {
 
     #[test]
     fn let_bound_then_passed_ok() {
-        let source = r#"#[test] fn test_foo() { let f = File::create("test.txt"); write_file(f); }"#;
+        let source =
+            r#"#[test] fn test_foo() { let f = File::create("test.txt"); write_file(f); }"#;
         assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
     }
 }
