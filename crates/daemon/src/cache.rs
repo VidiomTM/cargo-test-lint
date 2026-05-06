@@ -16,11 +16,7 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(max_size: usize) -> Self {
-        Cache {
-            max_size,
-            entries: BTreeMap::new(),
-            insertion_order: VecDeque::new(),
-        }
+        Cache { max_size, entries: BTreeMap::new(), insertion_order: VecDeque::new() }
     }
 
     pub fn get(&self, key: &str) -> Option<Vec<u8>> {
