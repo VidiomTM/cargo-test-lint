@@ -55,24 +55,13 @@ impl MutationSet {
     }
 
     pub fn count_invariant_holds(&self) -> bool {
-        let caught = self.count_by_status(&MutationStatus::Caught);
-        let survived = self.count_by_status(&MutationStatus::Survived);
-        let timeout = self.count_by_status(&MutationStatus::Timeout);
-        let unviable = self.count_by_status(&MutationStatus::Unviable);
-        let skipped = self.count_by_status(&MutationStatus::Skipped);
-        caught + survived + timeout + unviable + skipped == self.total()
+        MutationStatus::ALL.iter().map(|s| self.count_by_status(s)).sum::<usize>() == self.total()
     }
 
     pub fn no_double_count(&self) -> bool {
-        let statuses: Vec<&MutationStatus> = self.mutations.iter().map(|m| &m.status).collect();
-        for status in &MutationStatus::ALL {
-            let count = statuses.iter().filter(|&&s| s == status).count();
-            let expected = self.count_by_status(status);
-            if count != expected {
-                return false;
-            }
-        }
-        true
+        use std::collections::HashSet;
+        let mut seen_ids = HashSet::with_capacity(self.mutations.len());
+        self.mutations.iter().all(|m| seen_ids.insert(m.id))
     }
 }
 
@@ -109,7 +98,7 @@ mod tests {
     }
 
     fn arb_mutation_set() -> impl Strategy<Value = MutationSet> {
-        proptest::collection::vec(arb_mutation(), 0..100)
+        proptest::collection::vec(arb_mutation(), 0..=100)
             .prop_map(|mutations| MutationSet { mutations })
     }
 
@@ -121,7 +110,7 @@ mod tests {
             mutations in arb_mutation_set()
         ) {
             for m in &mutations.mutations {
-                let matches_one = MutationStatus::ALL.iter().filter(|&&ref s| m.status == *s).count();
+                let matches_one = MutationStatus::ALL.iter().filter(|s| **s == m.status).count();
                 prop_assert_eq!(matches_one, 1);
             }
         }
