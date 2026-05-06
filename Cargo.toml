@@ -23,6 +23,7 @@ streaming-iterator = "0.1"
 anstyle = "1"
 ignore = "0.4"
 regex = "1"
+proptest = "1"
 
 [workspace.metadata.binstall]
 pkg-url = "{ repo }/releases/download/{ version }/cargo-test-lint-{ target }{ archive-suffix }"
