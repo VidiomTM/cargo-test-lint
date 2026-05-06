@@ -32,12 +32,10 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 pub fn serialize(data: &CoverageData) -> String {
-    let mut out = String::new();
+    use std::fmt::Write;
+    let mut out = String::with_capacity(data.lines.len() * 32);
     for line in &data.lines {
-        out.push_str(&format!(
-            "{}:{}:{}\n",
-            line.file_path, line.line_number, line.execution_count
-        ));
+        let _ = writeln!(out, "{}:{}:{}", line.file_path, line.line_number, line.execution_count);
     }
     out
 }
@@ -54,7 +52,7 @@ pub fn parse(text: &str) -> Result<CoverageData, ParseError> {
         if entry.is_empty() {
             continue;
         }
-        let parts: Vec<&str> = entry.splitn(3, ':').collect();
+        let parts: Vec<&str> = entry.rsplitn(3, ':').collect();
         if parts.len() != 3 {
             return Err(ParseError::InvalidLine {
                 line_num: i + 1,
@@ -62,13 +60,10 @@ pub fn parse(text: &str) -> Result<CoverageData, ParseError> {
             });
         }
 
-        let file_path = parts[0].to_string();
-        if file_path.is_empty() {
-            return Err(ParseError::InvalidLine {
-                line_num: i + 1,
-                reason: "file path is empty".into(),
-            });
-        }
+        let execution_count: u64 = parts[0].parse().map_err(|_| ParseError::InvalidLine {
+            line_num: i + 1,
+            reason: format!("invalid execution count: {}", parts[0]),
+        })?;
 
         let line_number: u64 = parts[1].parse().map_err(|_| ParseError::InvalidLine {
             line_num: i + 1,
@@ -81,10 +76,13 @@ pub fn parse(text: &str) -> Result<CoverageData, ParseError> {
             });
         }
 
-        let execution_count: u64 = parts[2].parse().map_err(|_| ParseError::InvalidLine {
-            line_num: i + 1,
-            reason: format!("invalid execution count: {}", parts[2]),
-        })?;
+        let file_path = parts[2].to_string();
+        if file_path.is_empty() {
+            return Err(ParseError::InvalidLine {
+                line_num: i + 1,
+                reason: "file path is empty".into(),
+            });
+        }
 
         lines.push(CoverageLine { file_path, line_number, execution_count });
     }

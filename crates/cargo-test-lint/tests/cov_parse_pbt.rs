@@ -2,7 +2,7 @@ use cargo_test_lint::cov_parse::{self, CoverageData, CoverageLine};
 use proptest::prelude::*;
 
 fn arb_file_path() -> impl Strategy<Value = String> {
-    "[a-zA-Z0-9_./]{1,80}"
+    prop::string::string_regex("[a-zA-Z0-9_./]{1,80}").unwrap()
 }
 
 fn arb_coverage_line() -> impl Strategy<Value = CoverageLine> {
@@ -53,12 +53,8 @@ proptest! {
     fn parsed_execution_counts_non_negative(data in arb_coverage_data()) {
         let serialized = cov_parse::serialize(&data);
         let parsed = cov_parse::parse(&serialized).unwrap();
-        for line in &parsed.lines {
-            prop_assert!(
-                line.execution_count == line.execution_count,
-                "execution_count overflow/wrap: {}",
-                line.execution_count
-            );
+        for (original, parsed_line) in data.lines.iter().zip(&parsed.lines) {
+            prop_assert_eq!(original.execution_count, parsed_line.execution_count);
         }
     }
 
@@ -68,7 +64,6 @@ proptest! {
         let parsed = cov_parse::parse(&serialized).unwrap();
         for line in &parsed.lines {
             prop_assert!(!line.file_path.is_empty(), "file_path must not be empty");
-            prop_assert!(line.file_path.len() >= 1, "file_path length must be >= 1");
         }
     }
 
