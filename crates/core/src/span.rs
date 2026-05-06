@@ -9,7 +9,12 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Option<Self> {
+    pub fn new(
+        start_line: usize,
+        start_col: usize,
+        end_line: usize,
+        end_col: usize,
+    ) -> Option<Self> {
         if start_line == 0 || start_col == 0 || end_line == 0 || end_col == 0 {
             return None;
         }
@@ -32,9 +37,7 @@ impl Span {
             return vec![];
         }
         let mut sorted = spans.to_vec();
-        sorted.sort_by(|a, b| {
-            a.start_line.cmp(&b.start_line).then(a.start_col.cmp(&b.start_col))
-        });
+        sorted.sort_by(|a, b| a.start_line.cmp(&b.start_line).then(a.start_col.cmp(&b.start_col)));
         let mut result: Vec<Span> = vec![sorted[0]];
         for span in &sorted[1..] {
             let last = result.last_mut().unwrap();

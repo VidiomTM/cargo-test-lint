@@ -1,6 +1,6 @@
-use test_lint_core::span::Span;
 use proptest::collection::vec;
 use proptest::prelude::*;
+use test_lint_core::span::Span;
 
 prop_compose! {
     fn arb_span()(
