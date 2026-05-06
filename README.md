@@ -90,6 +90,39 @@ Diagnostics appear inline as you edit.
 
 Single crate using tree-sitter for AST parsing. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Property-Based Testing
+
+This project uses [proptest](https://docs.rs/proptest) for property-based testing (PBT).
+
+### Conventions
+
+- **Location:** Property tests live alongside unit tests in the same module or in `tests/` for integration-level properties.
+- **Generator naming:** All strategy/allocator functions use the `arb_` prefix (e.g., `arb_path()`, `arb_config()`).
+- **Case counts:**
+  - Local development: **256** cases (proptest default).
+  - CI: **1000** cases via `PROPTEST_CASES=1000` environment variable.
+- **Shrinking:** `max_shrink_iters: 10000` configured for thorough minimization in CI.
+- **Running:** CI uses `cargo test -- --include-ignored` to ensure all PBT tests execute.
+
+### Example
+
+```rust
+use proptest::prelude::*;
+
+fn arb_identifier() -> impl Strategy<Value = String> {
+    proptest::string::string_regex("[a-z][a-z0-9_]{0,30}").unwrap()
+}
+
+proptest! {
+    #![proptest_config(common::proptest_config())]
+
+    #[test]
+    fn identifier_never_empty(ref s in arb_identifier()) {
+        assert!(!s.is_empty());
+    }
+}
+```
+
 ## License
 
 MIT OR Apache-2.0
