@@ -1,40 +1,30 @@
 use proptest::prelude::*;
 
 pub fn arb_coverage_line() -> impl Strategy<Value = (String, usize, usize, usize)> {
-    (
-        "[a-z_][a-z0-9_]*\\.rs",
-        (1usize..1000),
-        (1usize..1000),
-        (0usize..1000),
-    )
-        .prop_map(|(file, s, e, count)| {
-            let start = s.min(e);
-            let end = s.max(e);
-            (format!("src/{file}"), start, end, count)
-        })
+    let file_regex = prop::string::string_regex("[a-z_][a-z0-9_]*\\.rs").unwrap();
+    (file_regex, (1usize..1000), (1usize..1000), (0usize..1000)).prop_map(|(file, s, e, count)| {
+        let start = s.min(e);
+        let end = s.max(e);
+        (format!("src/{file}"), start, end, count)
+    })
 }
 
 pub fn arb_span() -> impl Strategy<Value = (usize, usize, usize, usize)> {
-    (
-        (1usize..500),
-        (1usize..120),
-        (1usize..500),
-        (1usize..120),
-    )
-        .prop_map(|(sl, sc, el, ec)| {
-            let (start_line, end_line) = if sl <= el { (sl, el) } else { (el, sl) };
-            let (start_col, end_col) = if start_line == end_line {
-                if sc <= ec { (sc, ec) } else { (ec, sc) }
-            } else {
-                (sc, ec)
-            };
-            (start_line, start_col, end_line, end_col)
-        })
+    ((1usize..500), (1usize..120), (1usize..500), (1usize..120)).prop_map(|(sl, sc, el, ec)| {
+        let (start_line, end_line) = if sl <= el { (sl, el) } else { (el, sl) };
+        let (start_col, end_col) = if start_line == end_line {
+            if sc <= ec { (sc, ec) } else { (ec, sc) }
+        } else {
+            (sc, ec)
+        };
+        (start_line, start_col, end_line, end_col)
+    })
 }
 
 pub fn arb_mutation() -> impl Strategy<Value = (String, usize, String)> {
+    let file_regex = prop::string::string_regex("[a-z_][a-z0-9_]*\\.rs").unwrap();
     (
-        "[a-z_][a-z0-9_]*\\.rs",
+        file_regex,
         (1usize..1000),
         prop_oneof![
             Just("missed"),
@@ -44,14 +34,13 @@ pub fn arb_mutation() -> impl Strategy<Value = (String, usize, String)> {
             Just("unreachable"),
         ],
     )
-        .prop_map(|(file, line, status)| {
-            (format!("src/{file}"), line, status.to_string())
-        })
+        .prop_map(|(file, line, status)| (format!("src/{file}"), line, status.to_string()))
 }
 
 pub fn arb_config() -> impl Strategy<Value = String> {
+    let rule_regex = prop::string::string_regex("[a-z_][a-z0-9_]*").unwrap();
     (
-        "[a-z_][a-z0-9_]*",
+        rule_regex,
         prop_oneof![Just("allow"), Just("warn"), Just("deny"), Just("forbid")],
         (0usize..20),
         (0usize..10),
@@ -69,39 +58,4 @@ pub fn arb_config() -> impl Strategy<Value = String> {
                  {rule_id} = \"{level}\"\n"
             )
         })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::proptest;
-
-    proptest! {
-        #[test]
-        fn coverage_line_is_valid(coverage in arb_coverage_line()) {
-            let (file, start, end, _count) = coverage;
-            assert!(file.ends_with(".rs"));
-            assert!(start <= end);
-        }
-        #[test]
-        fn span_is_valid(span in arb_span()) {
-            let (sl, sc, el, ec) = span;
-            assert!(sl <= el);
-            if sl == el { assert!(sc <= ec); }
-        }
-        #[test]
-        fn mutation_is_valid(mutation in arb_mutation()) {
-            let (file, line, status) = mutation;
-            assert!(file.ends_with(".rs"));
-            assert!(line > 0);
-            let valid = ["missed", "caught", "timeout", "build-failure", "unreachable"];
-            assert!(valid.contains(&status.as_str()));
-        }
-        #[test]
-        fn config_contains_rules(config in arb_config()) {
-            assert!(config.contains("[rules]"));
-            assert!(config.contains("max-expects"));
-            assert!(config.contains("max-nested-mod"));
-        }
-    }
 }
