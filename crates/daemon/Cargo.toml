@@ -1,0 +1,15 @@
+[package]
+name = "ctl-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Async daemon for cargo-test-lint: file watcher, coverage/mutation runners, NDJSON cache"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
