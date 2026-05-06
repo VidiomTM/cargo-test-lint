@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cargo-test-lint"]
+members = ["crates/cargo-test-lint", "crates/daemon"]
 
 [workspace.package]
 version = "0.2.0"
