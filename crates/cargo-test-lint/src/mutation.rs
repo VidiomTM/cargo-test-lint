@@ -51,10 +51,7 @@ impl MutationSet {
     }
 
     pub fn surviving(&self) -> Vec<&Mutation> {
-        self.mutations
-            .iter()
-            .filter(|m| m.status == MutationStatus::Survived)
-            .collect()
+        self.mutations.iter().filter(|m| m.status == MutationStatus::Survived).collect()
     }
 
     pub fn count_invariant_holds(&self) -> bool {
@@ -95,12 +92,9 @@ mod tests {
     }
 
     fn arb_source_location() -> impl Strategy<Value = SourceLocation> {
-        (any::<String>(), 1usize..10000, 1usize..1000)
-            .prop_map(|(file, line, column)| SourceLocation {
-                file: PathBuf::from(file),
-                line,
-                column,
-            })
+        (any::<String>(), 1usize..10000, 1usize..1000).prop_map(|(file, line, column)| {
+            SourceLocation { file: PathBuf::from(file), line, column }
+        })
     }
 
     fn arb_mutation() -> impl Strategy<Value = Mutation> {
@@ -115,9 +109,8 @@ mod tests {
     }
 
     fn arb_mutation_set() -> impl Strategy<Value = MutationSet> {
-        proptest::collection::vec(arb_mutation(), 0..100).prop_map(|mutations| MutationSet {
-            mutations,
-        })
+        proptest::collection::vec(arb_mutation(), 0..100)
+            .prop_map(|mutations| MutationSet { mutations })
     }
 
     proptest! {
@@ -168,9 +161,7 @@ mod tests {
 
     #[test]
     fn edge_case_all_caught() {
-        let set = MutationSet {
-            mutations: vec![make_mutation(0, MutationStatus::Caught)],
-        };
+        let set = MutationSet { mutations: vec![make_mutation(0, MutationStatus::Caught)] };
         assert_eq!(set.count_by_status(&MutationStatus::Caught), 1);
         assert_eq!(set.count_by_status(&MutationStatus::Survived), 0);
         assert!(set.count_invariant_holds());
@@ -215,11 +206,7 @@ mod tests {
     fn make_mutation(id: usize, status: MutationStatus) -> Mutation {
         Mutation {
             id,
-            location: SourceLocation {
-                file: PathBuf::from("src/lib.rs"),
-                line: 1,
-                column: 1,
-            },
+            location: SourceLocation { file: PathBuf::from("src/lib.rs"), line: 1, column: 1 },
             status,
             original: "a".into(),
             replacement: "b".into(),
