@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       PROPTEST_CASES: 1000
       PROPTEST_MAX_SHRINK_ITERS: 10000
@@ -29,7 +29,7 @@ jobs:
         run: cargo run --bin cargo-test-lint -- test-lint --project-root .
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -39,7 +39,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   cargo-deny:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
