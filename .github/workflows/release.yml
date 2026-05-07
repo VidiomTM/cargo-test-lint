@@ -17,23 +17,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: self-hosted
             use_cross: false
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: self-hosted
             use_cross: true
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: self-hosted
             use_cross: false
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: self-hosted
             use_cross: false
-          - target: x86_64-pc-windows-msvc
             os: windows-latest
             use_cross: false
 
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
@@ -72,7 +69,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
