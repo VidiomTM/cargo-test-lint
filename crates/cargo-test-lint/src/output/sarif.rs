@@ -87,35 +87,52 @@ mod tests {
 
     #[test]
     fn sarif_version() {
-        assert_eq!(format(&[])["version"], "2.1.0");
+        assert_eq!(format(&[])["version"], "2.1.0", "SARIF version should be 2.1.0");
     }
 
     #[test]
     fn sarif_has_tool_driver() {
-        assert_eq!(format(&[])["runs"][0]["tool"]["driver"]["name"], "cargo-test-lint");
+        assert_eq!(
+            format(&[])["runs"][0]["tool"]["driver"]["name"],
+            "cargo-test-lint",
+            "tool driver name should be cargo-test-lint"
+        );
     }
 
     #[test]
     fn sarif_contains_results() {
         let sarif = format(&[make_diag("CTL_ASSERT_MSG", DiagnosticLevel::Warn)]);
-        assert_eq!(sarif["runs"][0]["results"].as_array().unwrap().len(), 1);
-        assert_eq!(sarif["runs"][0]["results"][0]["ruleId"], "CTL_ASSERT_MSG");
+        assert_eq!(
+            sarif["runs"][0]["results"].as_array().unwrap().len(),
+            1,
+            "should have exactly 1 result"
+        );
+        assert_eq!(
+            sarif["runs"][0]["results"][0]["ruleId"], "CTL_ASSERT_MSG",
+            "result ruleId should be CTL_ASSERT_MSG"
+        );
     }
 
     #[test]
     fn sarif_level_mapping() {
         let sarif =
             format(&[make_diag("A", DiagnosticLevel::Warn), make_diag("B", DiagnosticLevel::Deny)]);
-        assert_eq!(sarif["runs"][0]["results"][0]["level"], "warning");
-        assert_eq!(sarif["runs"][0]["results"][1]["level"], "error");
+        assert_eq!(
+            sarif["runs"][0]["results"][0]["level"], "warning",
+            "warn level should map to 'warning'"
+        );
+        assert_eq!(
+            sarif["runs"][0]["results"][1]["level"], "error",
+            "deny level should map to 'error'"
+        );
     }
 
     #[test]
     fn sarif_has_rules() {
         let sarif = format(&[make_diag("CTL_ASSERT_MSG", DiagnosticLevel::Warn)]);
         let rules = sarif["runs"][0]["tool"]["driver"]["rules"].as_array().unwrap();
-        assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0]["id"], "CTL_ASSERT_MSG");
+        assert_eq!(rules.len(), 1, "should have exactly 1 rule");
+        assert_eq!(rules[0]["id"], "CTL_ASSERT_MSG", "rule id should be CTL_ASSERT_MSG");
     }
 
     #[test]
@@ -128,7 +145,10 @@ mod tests {
             end_byte: 15,
         });
         let sarif = format(&[diag]);
-        assert!(sarif["runs"][0]["results"][0]["fixes"].is_array());
+        assert!(
+            sarif["runs"][0]["results"][0]["fixes"].is_array(),
+            "fixes should be present as array"
+        );
     }
 
     #[test]
@@ -136,6 +156,9 @@ mod tests {
         let formatter = SarifFormatter;
         let mut buf = Vec::new();
         formatter.write(&[make_diag("A", DiagnosticLevel::Warn)], &mut buf).unwrap();
-        assert!(serde_json::from_slice::<serde_json::Value>(&buf).is_ok());
+        assert!(
+            serde_json::from_slice::<serde_json::Value>(&buf).is_ok(),
+            "output should be valid JSON"
+        );
     }
 }

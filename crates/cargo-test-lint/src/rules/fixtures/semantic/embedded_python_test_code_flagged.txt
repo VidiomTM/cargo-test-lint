@@ -1,0 +1,23 @@
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_lint() {
+        let code = r#"
+import pytest
+from myapp import Calculator
+
+def test_addition():
+    calc = Calculator()
+    result = calc.add(2, 3)
+    assert result == 5
+
+def test_subtraction():
+    calc = Calculator()
+    result = calc.subtract(5, 3)
+    assert result == 2
+"#;
+        let result = 1; 
+        assert_eq!(result, 1);
+    }
+}

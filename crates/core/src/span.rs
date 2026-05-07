@@ -64,48 +64,48 @@ mod tests {
 
     #[test]
     fn new_rejects_zero_positions() {
-        assert!(Span::new(0, 1, 1, 1).is_none());
-        assert!(Span::new(1, 0, 1, 1).is_none());
-        assert!(Span::new(1, 1, 0, 1).is_none());
-        assert!(Span::new(1, 1, 1, 0).is_none());
+        assert!(Span::new(0, 1, 1, 1).is_none(), "zero start_line should be rejected");
+        assert!(Span::new(1, 0, 1, 1).is_none(), "zero start_col should be rejected");
+        assert!(Span::new(1, 1, 0, 1).is_none(), "zero end_line should be rejected");
+        assert!(Span::new(1, 1, 1, 0).is_none(), "zero end_col should be rejected");
     }
 
     #[test]
     fn new_rejects_inverted() {
-        assert!(Span::new(5, 1, 1, 1).is_none());
-        assert!(Span::new(3, 5, 3, 3).is_none());
+        assert!(Span::new(5, 1, 1, 1).is_none(), "inverted line span should be rejected");
+        assert!(Span::new(3, 5, 3, 3).is_none(), "inverted column span should be rejected");
     }
 
     #[test]
     fn new_accepts_valid() {
-        assert!(Span::new(1, 1, 5, 10).is_some());
-        assert!(Span::new(3, 5, 3, 5).is_some());
-        assert!(Span::new(3, 5, 3, 10).is_some());
+        assert!(Span::new(1, 1, 5, 10).is_some(), "normal span should be accepted");
+        assert!(Span::new(3, 5, 3, 5).is_some(), "point span should be accepted");
+        assert!(Span::new(3, 5, 3, 10).is_some(), "same-line span should be accepted");
     }
 
     #[test]
     fn contains_self() {
         let s = Span::new(1, 1, 5, 10).unwrap();
-        assert!(s.contains(&s));
+        assert!(s.contains(&s), "span should contain itself");
     }
 
     #[test]
     fn contains_sub_span() {
         let outer = Span::new(1, 1, 10, 20).unwrap();
         let inner = Span::new(2, 3, 8, 15).unwrap();
-        assert!(outer.contains(&inner));
-        assert!(!inner.contains(&outer));
+        assert!(outer.contains(&inner), "outer span should contain inner span");
+        assert!(!inner.contains(&outer), "inner span should not contain outer span");
     }
 
     #[test]
     fn merge_empty_is_empty() {
-        assert_eq!(Span::merge(&[]), vec![]);
+        assert_eq!(Span::merge(&[]), vec![], "merging empty list should produce empty list");
     }
 
     #[test]
     fn merge_single_is_identity() {
         let s = Span::new(1, 1, 5, 10).unwrap();
-        assert_eq!(Span::merge(&[s]), vec![s]);
+        assert_eq!(Span::merge(&[s]), vec![s], "merging single span should return it unchanged");
     }
 
     #[test]
@@ -113,8 +113,8 @@ mod tests {
         let a = Span::new(1, 1, 5, 10).unwrap();
         let b = Span::new(3, 1, 8, 5).unwrap();
         let merged = Span::merge(&[a, b]);
-        assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].start_line, 1);
-        assert_eq!(merged[0].end_line, 8);
+        assert_eq!(merged.len(), 1, "overlapping spans should merge into 1");
+        assert_eq!(merged[0].start_line, 1, "merged span should start at line 1");
+        assert_eq!(merged[0].end_line, 8, "merged span should end at line 8");
     }
 }

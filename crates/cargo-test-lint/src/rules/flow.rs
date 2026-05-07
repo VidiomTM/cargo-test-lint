@@ -100,8 +100,11 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_TEST_BRANCHING");
+        assert_eq!(diags.len(), 1, "if in test should produce exactly 1 diagnostic");
+        assert_eq!(
+            diags[0].rule_id, "CTL_TEST_BRANCHING",
+            "diagnostic should be CTL_TEST_BRANCHING"
+        );
     }
 
     #[test]
@@ -115,7 +118,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "match in test should produce exactly 1 diagnostic");
     }
 
     #[test]
@@ -128,7 +131,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "test without branching should produce no diagnostics");
     }
 
     #[test]
@@ -141,6 +144,6 @@ fn helper() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-test functions should not be flagged");
     }
 }

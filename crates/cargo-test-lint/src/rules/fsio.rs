@@ -87,8 +87,8 @@ fn test_writes() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(!diags.is_empty());
-        assert!(diags[0].message.contains("write"));
+        assert!(!diags.is_empty(), "fs::write in test should be flagged");
+        assert!(diags[0].message.contains("write"), "message should reference write operation");
     }
 
     #[test]
@@ -99,7 +99,7 @@ pub fn save(data: &[u8]) {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "fs::write in non-test code should not be flagged");
     }
 
     #[test]
@@ -111,7 +111,7 @@ fn test_reads() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(!diags.is_empty());
+        assert!(!diags.is_empty(), "short-form fs::read_to_string in test should be flagged");
     }
 
     #[test]
@@ -123,6 +123,6 @@ fn test_math() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "non-filesystem calls should not be flagged");
     }
 }

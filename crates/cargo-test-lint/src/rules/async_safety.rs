@@ -119,8 +119,15 @@ async fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_ASYNC_BLOCKING");
+        assert_eq!(
+            diags.len(),
+            1,
+            "blocking sleep in tokio test should produce exactly 1 diagnostic"
+        );
+        assert_eq!(
+            diags[0].rule_id, "CTL_ASYNC_BLOCKING",
+            "diagnostic should be CTL_ASYNC_BLOCKING"
+        );
     }
 
     #[test]
@@ -132,7 +139,7 @@ async fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "async code should produce no diagnostics");
     }
 
     #[test]
@@ -144,6 +151,6 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-async tests should not be flagged");
     }
 }

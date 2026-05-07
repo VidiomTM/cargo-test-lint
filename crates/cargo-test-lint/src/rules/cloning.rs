@@ -102,21 +102,21 @@ mod tests {
     fn clone_not_reused_flagged() {
         let source = r#"#[test] fn test_foo() { let x = vec![1, 2, 3]; let y = x.clone(); assert_eq!(y, vec![1, 2, 3]); }"#;
         let diags = test_rule(&UnnecessaryClone, source);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("x"));
+        assert_eq!(diags.len(), 1, "clone not reused should produce exactly 1 diagnostic");
+        assert!(diags[0].message.contains("x"), "message should reference cloned variable");
     }
 
     #[test]
     fn clone_reused_passes() {
         let source = r#"#[test] fn test_foo() { let x = vec![1, 2, 3]; let y = x.clone(); assert_eq!(y, vec![1, 2, 3]); assert_eq!(x.len(), 3); }"#;
         let diags = test_rule(&UnnecessaryClone, source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "clone that is reused should produce no diagnostics");
     }
 
     #[test]
     fn non_let_clone_ignored() {
         let source = r#"#[test] fn test_foo() { let x = vec![1, 2, 3]; foo(x.clone()); assert_eq!(x.len(), 3); }"#;
         let diags = test_rule(&UnnecessaryClone, source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-let clone should be ignored");
     }
 }

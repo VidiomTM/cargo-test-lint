@@ -114,8 +114,8 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&StaticMut, source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_STATIC_MUT");
+        assert_eq!(diags.len(), 1, "static mut should produce exactly 1 diagnostic");
+        assert_eq!(diags[0].rule_id, "CTL_STATIC_MUT", "diagnostic should be CTL_STATIC_MUT");
     }
 
     #[test]
@@ -129,7 +129,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&StaticMut, source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "const should not be flagged as static mut");
     }
 
     #[test]
@@ -141,8 +141,8 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&EnvSetVar, source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_ENV_SET_VAR");
+        assert_eq!(diags.len(), 1, "env::set_var should produce exactly 1 diagnostic");
+        assert_eq!(diags[0].rule_id, "CTL_ENV_SET_VAR", "diagnostic should be CTL_ENV_SET_VAR");
     }
 
     #[test]
@@ -154,6 +154,6 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&EnvSetVar, source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "env::var should not be flagged");
     }
 }

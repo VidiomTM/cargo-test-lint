@@ -105,7 +105,10 @@ mod tests {
         };
         let serialized = serialize(&data);
         let parsed = parse(&serialized).unwrap();
-        assert_eq!(data, parsed);
+        assert_eq!(
+            data, parsed,
+            "single-line coverage data should roundtrip through serialize/parse"
+        );
     }
 
     #[test]
@@ -122,30 +125,33 @@ mod tests {
         };
         let serialized = serialize(&data);
         let parsed = parse(&serialized).unwrap();
-        assert_eq!(data, parsed);
+        assert_eq!(
+            data, parsed,
+            "multi-line coverage data should roundtrip through serialize/parse"
+        );
     }
 
     #[test]
     fn reject_empty_input() {
-        assert!(parse("").is_err());
-        assert!(parse("   ").is_err());
+        assert!(parse("").is_err(), "empty string should fail to parse");
+        assert!(parse("   ").is_err(), "whitespace-only string should fail to parse");
     }
 
     #[test]
     fn reject_zero_line_number() {
         let text = "src/main.rs:0:1\n";
-        assert!(parse(text).is_err());
+        assert!(parse(text).is_err(), "zero line number should be rejected");
     }
 
     #[test]
     fn reject_empty_file_path() {
         let text = ":10:1\n";
-        assert!(parse(text).is_err());
+        assert!(parse(text).is_err(), "empty file path should be rejected");
     }
 
     #[test]
     fn reject_malformed_line() {
         let text = "garbage\n";
-        assert!(parse(text).is_err());
+        assert!(parse(text).is_err(), "malformed line should fail to parse");
     }
 }

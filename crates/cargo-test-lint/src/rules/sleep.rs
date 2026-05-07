@@ -72,8 +72,8 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_SLEEP");
+        assert_eq!(diags.len(), 1, "std::thread::sleep should produce exactly 1 diagnostic");
+        assert_eq!(diags[0].rule_id, "CTL_SLEEP", "diagnostic should be CTL_SLEEP");
     }
 
     #[test]
@@ -85,7 +85,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-sleep calls should produce no diagnostics");
     }
 
     #[test]
@@ -97,6 +97,6 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-std sleep calls should not be flagged");
     }
 }

@@ -73,20 +73,28 @@ mod tests {
     #[test]
     fn simple_type_passes() {
         let source = r#"type MyType = Vec<u32>;"#;
-        assert_eq!(test_rule(&DeepWrapper, source).len(), 0);
+        assert_eq!(
+            test_rule(&DeepWrapper, source).len(),
+            0,
+            "simple type should produce no diagnostics"
+        );
     }
 
     #[test]
     fn deeply_nested_type_flagged() {
         let source = r#"type MyType = Arc<Mutex<Option<HashMap<String, Vec<u32>>>>>;"#;
         let diags = test_rule(&DeepWrapper, source);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("levels"));
+        assert_eq!(diags.len(), 1, "deeply nested type should produce exactly 1 diagnostic");
+        assert!(diags[0].message.contains("levels"), "message should mention nesting levels");
     }
 
     #[test]
     fn moderate_nesting_passes() {
         let source = r#"type MyType = Arc<Mutex<u32>>;"#;
-        assert_eq!(test_rule(&DeepWrapper, source).len(), 0);
+        assert_eq!(
+            test_rule(&DeepWrapper, source).len(),
+            0,
+            "moderate nesting should produce no diagnostics"
+        );
     }
 }

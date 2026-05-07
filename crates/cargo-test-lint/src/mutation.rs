@@ -151,9 +151,17 @@ mod tests {
     #[test]
     fn edge_case_all_caught() {
         let set = MutationSet { mutations: vec![make_mutation(0, MutationStatus::Caught)] };
-        assert_eq!(set.count_by_status(&MutationStatus::Caught), 1);
-        assert_eq!(set.count_by_status(&MutationStatus::Survived), 0);
-        assert!(set.count_invariant_holds());
+        assert_eq!(
+            set.count_by_status(&MutationStatus::Caught),
+            1,
+            "all-caught set should have exactly 1 caught"
+        );
+        assert_eq!(
+            set.count_by_status(&MutationStatus::Survived),
+            0,
+            "all-caught set should have 0 survived"
+        );
+        assert!(set.count_invariant_holds(), "all-caught set should satisfy count invariant");
     }
 
     #[test]
@@ -164,8 +172,8 @@ mod tests {
                 make_mutation(1, MutationStatus::Survived),
             ],
         };
-        assert_eq!(set.surviving().len(), 2);
-        assert!(set.count_invariant_holds());
+        assert_eq!(set.surviving().len(), 2, "all-survived set should have 2 surviving");
+        assert!(set.count_invariant_holds(), "all-survived set should satisfy count invariant");
     }
 
     #[test]
@@ -179,17 +187,17 @@ mod tests {
                 make_mutation(4, MutationStatus::Skipped),
             ],
         };
-        assert!(set.count_invariant_holds());
-        assert_eq!(set.total(), 5);
-        assert_eq!(set.surviving().len(), 1);
+        assert!(set.count_invariant_holds(), "mixed set should satisfy count invariant");
+        assert_eq!(set.total(), 5, "mixed set should have 5 total mutations");
+        assert_eq!(set.surviving().len(), 1, "mixed set should have exactly 1 surviving");
     }
 
     #[test]
     fn edge_case_empty_set() {
         let set = MutationSet { mutations: vec![] };
-        assert_eq!(set.total(), 0);
-        assert!(set.count_invariant_holds());
-        assert!(set.surviving().is_empty());
+        assert_eq!(set.total(), 0, "empty set should have 0 total");
+        assert!(set.count_invariant_holds(), "empty set should satisfy count invariant");
+        assert!(set.surviving().is_empty(), "empty set should have no surviving");
     }
 
     fn make_mutation(id: usize, status: MutationStatus) -> Mutation {
