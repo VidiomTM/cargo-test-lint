@@ -119,72 +119,103 @@ mod tests {
     fn unbound_file_create_flagged() {
         let source = r#"#[test] fn test_foo() { File::create("test.txt"); }"#;
         let diags = test_rule(&MissingDropGuard, source);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("File::create"));
+        assert_eq!(diags.len(), 1, "unbound File::create should be flagged");
+        assert!(
+            diags[0].message.contains("File::create"),
+            "diagnostic should mention File::create"
+        );
     }
 
     #[test]
     fn bound_file_create_passes() {
         let source = r#"#[test] fn test_foo() { let f = File::create("test.txt"); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "bound File::create should not be flagged"
+        );
     }
 
     #[test]
     fn bound_with_unwrap_passes() {
         let source = r#"#[test] fn test_foo() { let dir = TempDir::new().unwrap(); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "bound TempDir with unwrap should not be flagged"
+        );
     }
 
     #[test]
     fn bound_with_question_mark_passes() {
         let source =
             r#"#[test] fn test_foo() -> Result<(), Error> { let dir = TempDir::new()?; Ok(()) }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "bound TempDir with ? should not be flagged"
+        );
     }
 
     #[test]
     fn bound_with_method_chain_passes() {
         let source = r#"#[test] fn test_foo() { let file = tempfile::NamedTempFile::new().unwrap().path().to_path_buf(); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "bound method chain should not be flagged"
+        );
     }
 
     #[test]
     fn unbound_tempdir_flagged() {
         let source = r#"#[test] fn test_foo() { TempDir::new(); }"#;
         let diags = test_rule(&MissingDropGuard, source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "unbound TempDir::new should be flagged");
     }
 
     #[test]
     fn tempfile_tempdir_recognized() {
         let source = r#"#[test] fn test_foo() { let dir = tempfile::tempdir(); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "bound tempfile::tempdir should not be flagged"
+        );
     }
 
     #[test]
     fn unbound_tempfile_tempdir_flagged() {
         let source = r#"#[test] fn test_foo() { tempfile::tempdir(); }"#;
         let diags = test_rule(&MissingDropGuard, source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "unbound tempfile::tempdir should be flagged");
     }
 
     #[test]
     fn non_resource_call_ignored() {
         let source = r#"#[test] fn test_foo() { println!("hello"); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "non-resource call should be ignored"
+        );
     }
 
     #[test]
     fn tcp_listener_without_binding_flagged() {
         let source = r#"#[test] fn test_foo() { TcpListener::bind("127.0.0.1:0"); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 1);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            1,
+            "unbound TcpListener::bind should be flagged"
+        );
     }
 
     #[test]
     fn wildcard_let_flagged() {
         let source = r#"#[test] fn test_foo() { let _ = TempDir::new().unwrap(); }"#;
         let diags = test_rule(&MissingDropGuard, source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "wildcard let binding should be flagged");
     }
 
     #[test]
@@ -193,13 +224,21 @@ mod tests {
         // the value is not stored in a let binding that lives
         // for the duration of the test. It's effectively unbound.
         let source = r#"#[test] fn test_foo() { write_file(File::create("test.txt")); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 1);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            1,
+            "File::create passed as argument should be flagged"
+        );
     }
 
     #[test]
     fn let_bound_then_passed_ok() {
         let source =
             r#"#[test] fn test_foo() { let f = File::create("test.txt"); write_file(f); }"#;
-        assert_eq!(test_rule(&MissingDropGuard, source).len(), 0);
+        assert_eq!(
+            test_rule(&MissingDropGuard, source).len(),
+            0,
+            "let-bound then passed should not be flagged"
+        );
     }
 }

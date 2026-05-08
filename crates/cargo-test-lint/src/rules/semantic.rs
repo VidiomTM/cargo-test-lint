@@ -80,32 +80,9 @@ mod tests {
 
     #[test]
     fn embedded_python_test_code_flagged() {
-        let source = r##"
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_lint() {
-        let code = r#"
-import pytest
-from myapp import Calculator
-
-def test_addition():
-    calc = Calculator()
-    result = calc.add(2, 3)
-    assert result == 5
-
-def test_subtraction():
-    calc = Calculator()
-    result = calc.subtract(5, 3)
-    assert result == 2
-"#;
-        let result = 1; 
-        assert_eq!(result, 1);
-    }
-}
-"##;
+        let source = include_str!("../../tests/fixtures/semantic_python_corpus.rs");
         let diags = test_rule(&StringLiteralCorpus, source);
-        assert!(!diags.is_empty());
+        assert!(!diags.is_empty(), "expected diagnostics for embedded python test code");
     }
 
     #[test]
@@ -121,54 +98,20 @@ mod tests {
 }
 "##;
         let diags = test_rule(&StringLiteralCorpus, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "expected no diagnostics for short string");
     }
 
     #[test]
     fn no_test_context_ignored() {
-        let source = r##"
-fn helper() {
-    let code = r#"
-import pytest
-from myapp import Calculator
-
-def test_addition():
-    calc = Calculator()
-    result = calc.add(2, 3)
-    assert result == 5
-"#;
-}
-"##;
+        let source = include_str!("../../tests/fixtures/semantic_no_test_context.rs");
         let diags = test_rule(&StringLiteralCorpus, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "expected no diagnostics outside test context");
     }
 
     #[test]
     fn embedded_jest_test_code_flagged() {
-        let source = r##"
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_parse() {
-        let input = r#"
-import { describe, test, expect } from 'vitest';
-import { add } from './math';
-
-describe('addition', () => {
-    test('adds two numbers', () => {
-        expect(add(1, 2)).toBe(3);
-    });
-
-    test('handles zero', () => {
-        expect(add(0, 5)).toBe(5);
-    });
-});
-"#;
-        assert_eq!(2, 2);
-    }
-}
-"##;
+        let source = include_str!("../../tests/fixtures/semantic_jest_corpus.rs");
         let diags = test_rule(&StringLiteralCorpus, source);
-        assert!(!diags.is_empty());
+        assert!(!diags.is_empty(), "expected diagnostics for embedded jest test code");
     }
 }

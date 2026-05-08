@@ -151,9 +151,17 @@ mod tests {
     #[test]
     fn edge_case_all_caught() {
         let set = MutationSet { mutations: vec![make_mutation(0, MutationStatus::Caught)] };
-        assert_eq!(set.count_by_status(&MutationStatus::Caught), 1);
-        assert_eq!(set.count_by_status(&MutationStatus::Survived), 0);
-        assert!(set.count_invariant_holds());
+        assert_eq!(
+            set.count_by_status(&MutationStatus::Caught),
+            1,
+            "one mutation should be caught"
+        );
+        assert_eq!(
+            set.count_by_status(&MutationStatus::Survived),
+            0,
+            "no mutations should survive"
+        );
+        assert!(set.count_invariant_holds(), "count invariant holds for all-caught set");
     }
 
     #[test]
@@ -164,8 +172,8 @@ mod tests {
                 make_mutation(1, MutationStatus::Survived),
             ],
         };
-        assert_eq!(set.surviving().len(), 2);
-        assert!(set.count_invariant_holds());
+        assert_eq!(set.surviving().len(), 2, "both mutations should survive");
+        assert!(set.count_invariant_holds(), "count invariant holds for all-survived set");
     }
 
     #[test]
@@ -179,17 +187,17 @@ mod tests {
                 make_mutation(4, MutationStatus::Skipped),
             ],
         };
-        assert!(set.count_invariant_holds());
-        assert_eq!(set.total(), 5);
-        assert_eq!(set.surviving().len(), 1);
+        assert!(set.count_invariant_holds(), "count invariant holds for mixed set");
+        assert_eq!(set.total(), 5, "total should be 5");
+        assert_eq!(set.surviving().len(), 1, "one mutation should survive");
     }
 
     #[test]
     fn edge_case_empty_set() {
         let set = MutationSet { mutations: vec![] };
-        assert_eq!(set.total(), 0);
-        assert!(set.count_invariant_holds());
-        assert!(set.surviving().is_empty());
+        assert_eq!(set.total(), 0, "empty set should have zero total");
+        assert!(set.count_invariant_holds(), "count invariant holds for empty set");
+        assert!(set.surviving().is_empty(), "empty set should have no surviving mutations");
     }
 
     fn make_mutation(id: usize, status: MutationStatus) -> Mutation {

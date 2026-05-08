@@ -119,8 +119,11 @@ async fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_ASYNC_BLOCKING");
+        assert_eq!(diags.len(), 1, "blocking call in async test should produce one diagnostic");
+        assert_eq!(
+            diags[0].rule_id, "CTL_ASYNC_BLOCKING",
+            "diagnostic should have correct rule ID"
+        );
     }
 
     #[test]
@@ -132,7 +135,7 @@ async fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "async-compatible code should produce no diagnostics");
     }
 
     #[test]
@@ -144,6 +147,6 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-async test with blocking call should be ignored");
     }
 }

@@ -38,22 +38,27 @@ pub fn collect_rs_files(project_root: &Path) -> anyhow::Result<Vec<std::path::Pa
 mod tests {
     use super::*;
     use std::fs;
+    use std::io::Write;
+
+    fn write_file(path: &std::path::Path, content: &str) {
+        let mut f = std::fs::File::create(path).unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+    }
 
     #[test]
     fn parse_source_returns_tree() {
         let source = b"fn main() {}";
         let tree = parse_source(source);
-        assert!(tree.is_some());
+        assert!(tree.is_some(), "valid source should produce a parse tree");
         let tree = tree.unwrap();
-        assert_eq!(tree.root_node().kind(), "source_file");
+        assert_eq!(tree.root_node().kind(), "source_file", "root node should be source_file");
     }
 
     #[test]
     fn parse_source_returns_tree_even_for_invalid() {
-        // tree-sitter always returns a tree with ERROR nodes for invalid input
         let source = b"fn main() {";
         let tree = parse_source(source);
-        assert!(tree.is_some());
+        assert!(tree.is_some(), "tree-sitter should return a tree even for invalid input");
     }
 
     #[test]
@@ -61,12 +66,15 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let src = tmp.path().join("src");
         fs::create_dir_all(&src).unwrap();
-        fs::write(src.join("lib.rs"), "fn main() {}").unwrap();
-        fs::write(src.join("main.rs"), "fn main() {}").unwrap();
-        fs::write(src.join("readme.txt"), "not rust").unwrap();
+        write_file(&src.join("lib.rs"), "fn main() {}");
+        write_file(&src.join("main.rs"), "fn main() {}");
+        write_file(&src.join("readme.txt"), "not rust");
 
         let files = collect_rs_files(tmp.path()).unwrap();
-        assert_eq!(files.len(), 2);
-        assert!(files.iter().all(|p| p.extension().unwrap() == "rs"));
+        assert_eq!(files.len(), 2, "should find exactly 2 .rs files");
+        assert!(
+            files.iter().all(|p| p.extension().unwrap() == "rs"),
+            "all found files should have .rs extension"
+        );
     }
 }

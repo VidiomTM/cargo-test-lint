@@ -72,8 +72,8 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_SLEEP");
+        assert_eq!(diags.len(), 1, "expected exactly one sleep diagnostic");
+        assert_eq!(diags[0].rule_id, "CTL_SLEEP", "expected CTL_SLEEP rule id");
     }
 
     #[test]
@@ -85,7 +85,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "expected println to not be flagged");
     }
 
     #[test]
@@ -97,6 +97,6 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "expected non-std sleep to not be flagged");
     }
 }

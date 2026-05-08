@@ -39,7 +39,7 @@ fn default_config_roundtrip() {
     let config = Config::default();
     let toml_str = toml::to_string(&config).unwrap();
     let parsed: Config = toml::from_str(&toml_str).unwrap();
-    assert_eq!(parsed, config);
+    assert_eq!(parsed, config, "default config should roundtrip through TOML");
 }
 
 proptest! {

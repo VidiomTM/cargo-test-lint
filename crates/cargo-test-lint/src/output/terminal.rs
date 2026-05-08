@@ -95,15 +95,15 @@ mod tests {
     #[test]
     fn warning_contains_rule_id() {
         let output = format(&[make_diag("CTL_ASSERT_MSG", DiagnosticLevel::Warn, "missing msg")]);
-        assert!(output.contains("CTL_ASSERT_MSG"));
-        assert!(output.contains("warning"));
+        assert!(output.contains("CTL_ASSERT_MSG"), "output should contain the rule ID");
+        assert!(output.contains("warning"), "output should contain the warning level");
     }
 
     #[test]
     fn error_contains_file_location() {
         let output = format(&[make_diag("CTL_SLEEP", DiagnosticLevel::Forbid, "sleepy")]);
-        assert!(output.contains("src/lib.rs:10:5"));
-        assert!(output.contains("error"));
+        assert!(output.contains("src/lib.rs:10:5"), "output should contain the file location");
+        assert!(output.contains("error"), "output should contain the error level");
     }
 
     #[test]
@@ -116,8 +116,14 @@ mod tests {
             end_byte: 20,
         });
         let output = format(&[diag]);
-        assert!(output.contains("help: add message"));
-        assert!(output.contains("assert!(true, \"msg\")"));
+        assert!(
+            output.contains("help: add message"),
+            "output should contain the suggestion description"
+        );
+        assert!(
+            output.contains("assert!(true, \"msg\")"),
+            "output should contain the replacement code"
+        );
     }
 
     #[test]
@@ -128,17 +134,20 @@ mod tests {
             make_diag("C", DiagnosticLevel::Deny, "e1"),
         ];
         let output = format(&diags);
-        assert!(output.contains("1 error"));
-        assert!(output.contains("2 warnings"));
+        assert!(output.contains("1 error"), "summary should show 1 error");
+        assert!(output.contains("2 warnings"), "summary should show 2 warnings");
     }
 
     #[test]
     fn empty_diagnostics_no_output() {
-        assert!(format(&[]).is_empty());
+        assert!(format(&[]).is_empty(), "empty diagnostics should produce no output");
     }
 
     #[test]
     fn allow_level_skipped() {
-        assert!(format(&[make_diag("A", DiagnosticLevel::Allow, "hidden")]).is_empty());
+        assert!(
+            format(&[make_diag("A", DiagnosticLevel::Allow, "hidden")]).is_empty(),
+            "Allow level diagnostics should be skipped"
+        );
     }
 }

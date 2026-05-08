@@ -87,8 +87,11 @@ fn test_writes() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(!diags.is_empty());
-        assert!(diags[0].message.contains("write"));
+        assert!(!diags.is_empty(), "expected fs::write to be flagged");
+        assert!(
+            diags[0].message.contains("write"),
+            "expected diagnostic message to mention 'write'"
+        );
     }
 
     #[test]
@@ -99,7 +102,7 @@ pub fn save(data: &[u8]) {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "expected fs::write in non-test code to be ignored");
     }
 
     #[test]
@@ -111,7 +114,7 @@ fn test_reads() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(!diags.is_empty());
+        assert!(!diags.is_empty(), "expected short-form fs::read_to_string to be flagged");
     }
 
     #[test]
@@ -123,6 +126,6 @@ fn test_math() {
 }
 "#;
         let diags = test_rule(&FsIoInTest, source);
-        assert!(diags.is_empty());
+        assert!(diags.is_empty(), "expected non-fs call to be ignored");
     }
 }
