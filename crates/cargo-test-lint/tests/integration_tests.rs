@@ -124,3 +124,35 @@ fn test_foo() {
     // This test verifies the flag is accepted without error
     assert!(code == 0 || code == 1, "exit code should be 0 or 1, got: {code}");
 }
+
+#[test]
+fn json_output_format() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src");
+    fs::create_dir_all(&src).unwrap();
+    write_file(
+        &src.join("lib.rs"),
+        r#"
+#[test]
+fn test_foo() {
+    assert!(true);
+}
+"#,
+    );
+    write_file(&tmp.path().join("Cargo.toml"), "[package]\nname = \"test\"\n");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-test-lint"))
+        .arg("test-lint")
+        .arg("--project-root")
+        .arg(tmp.path())
+        .arg("--format")
+        .arg("json")
+        .output()
+        .expect("failed to run cargo-test-lint");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let parsed: serde_json::Value = serde_json::from_str(&stderr).expect("invalid JSON output");
+    assert!(parsed.is_array(), "JSON output should be an array");
+    assert!(!parsed.as_array().unwrap().is_empty(), "JSON should contain at least one diagnostic");
+    assert_eq!(parsed[0]["rule_id"], "CTL_ASSERT_MSG", "first diagnostic should be CTL_ASSERT_MSG");
+}
