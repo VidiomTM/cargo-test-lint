@@ -218,8 +218,8 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "CTL_ASSERT_MSG");
+        assert_eq!(diags.len(), 1, "assert without message should produce one diagnostic");
+        assert_eq!(diags[0].rule_id, "CTL_ASSERT_MSG", "diagnostic should have correct rule ID");
     }
 
     #[test]
@@ -231,7 +231,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "assert with message should produce no diagnostics");
     }
 
     #[test]
@@ -243,7 +243,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "assert_eq without message should produce one diagnostic");
     }
 
     #[test]
@@ -255,7 +255,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "assert_eq with message should produce no diagnostics");
     }
 
     #[test]
@@ -267,7 +267,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "assert_ne without message should produce one diagnostic");
     }
 
     #[test]
@@ -280,7 +280,7 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "non-assert macros should produce no diagnostics");
     }
 
     #[test]
@@ -292,9 +292,12 @@ fn test_foo() {
 }
 "#;
         let diags = test_rule(&rule(), source);
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "assert_eq without message should produce one diagnostic");
         let fix = diags[0].suggestion.as_ref().unwrap();
-        assert!(fix.replacement.contains("TODO: add context message"));
+        assert!(
+            fix.replacement.contains("TODO: add context message"),
+            "suggestion should contain placeholder message"
+        );
     }
 
     // MaxExpects tests
@@ -316,7 +319,7 @@ fn test_foo() {
 "#;
         let config = config_with_max(5);
         let diags = test_rule_with_config(&MaxExpects, source, config);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "under threshold should produce no diagnostics");
     }
 
     #[test]
@@ -334,9 +337,12 @@ fn test_foo() {
 "#;
         let config = config_with_max(5);
         let diags = test_rule_with_config(&MaxExpects, source, config);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("6 assertions"));
-        assert!(diags[0].message.contains("max 5"));
+        assert_eq!(diags.len(), 1, "over threshold should produce one diagnostic");
+        assert!(
+            diags[0].message.contains("6 assertions"),
+            "message should mention assertion count"
+        );
+        assert!(diags[0].message.contains("max 5"), "message should mention max threshold");
     }
 
     #[test]
@@ -351,7 +357,7 @@ fn test_foo() {
 "#;
         let config = config_with_max(3);
         let diags = test_rule_with_config(&MaxExpects, source, config);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "at threshold should produce no diagnostics");
     }
 
     #[test]
@@ -364,6 +370,6 @@ fn test_foo() {
 "#;
         let config = config_with_max(0);
         let diags = test_rule_with_config(&MaxExpects, source, config);
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "zero threshold should disable check");
     }
 }

@@ -26,7 +26,8 @@ struct TestLintArgs {
     #[arg(long)]
     rules: Option<String>,
 
-    #[arg(long, default_value = "terminal")]
+    #[arg(long, default_value = "terminal", value_name = "FORMAT")]
+    /// Output format: terminal, json, sarif
     format: String,
 
     #[arg(long)]
@@ -78,6 +79,7 @@ fn main() -> anyhow::Result<()> {
 
     let formatter: Box<dyn Formatter> = match format {
         OutputFormat::Terminal => Box::new(cargo_test_lint::output::terminal::TerminalFormatter),
+        OutputFormat::Json => Box::new(cargo_test_lint::output::json::JsonFormatter),
         OutputFormat::Sarif => Box::new(cargo_test_lint::output::sarif::SarifFormatter),
     };
 

@@ -1,0 +1,21 @@
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse() {
+        let input = r#"
+import { describe, test, expect } from 'vitest';
+import { add } from './math';
+
+describe('addition', () => {
+    test('adds two numbers', () => {
+        expect(add(1, 2)).toBe(3);
+    });
+
+    test('handles zero', () => {
+        expect(add(0, 5)).toBe(5);
+    });
+});
+"#;
+        assert_eq!(2, 2, "placeholder assertion");
+    }
+}

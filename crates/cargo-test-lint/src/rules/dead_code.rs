@@ -173,33 +173,48 @@ mod tests {
     fn unused_function_flagged() {
         let source = r#"#[cfg(test)] mod tests { fn helper() -> u32 { 42 } #[test] fn test_foo() { assert_eq!(1, 1); } }"#;
         let diags = test_rule(&DeadTestHelper, source);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("helper"));
+        assert_eq!(diags.len(), 1, "unused function should produce exactly one diagnostic");
+        assert!(diags[0].message.contains("helper"), "diagnostic message should mention 'helper'");
     }
 
     #[test]
     fn used_function_passes() {
         let source = r#"#[cfg(test)] mod tests { fn helper() -> u32 { 42 } #[test] fn test_foo() { assert_eq!(helper(), 42); } }"#;
-        assert_eq!(test_rule(&DeadTestHelper, source).len(), 0);
+        assert_eq!(
+            test_rule(&DeadTestHelper, source).len(),
+            0,
+            "used function should not be flagged"
+        );
     }
 
     #[test]
     fn unused_struct_flagged() {
         let source = r#"#[cfg(test)] mod tests { struct TestData { value: u32 } #[test] fn test_foo() { assert_eq!(1, 1); } }"#;
         let diags = test_rule(&DeadTestHelper, source);
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("TestData"));
+        assert_eq!(diags.len(), 1, "unused struct should produce exactly one diagnostic");
+        assert!(
+            diags[0].message.contains("TestData"),
+            "diagnostic message should mention 'TestData'"
+        );
     }
 
     #[test]
     fn non_test_module_ignored() {
         let source = r#"mod helpers { fn unused() {} }"#;
-        assert_eq!(test_rule(&DeadTestHelper, source).len(), 0);
+        assert_eq!(
+            test_rule(&DeadTestHelper, source).len(),
+            0,
+            "non-test module should be ignored"
+        );
     }
 
     #[test]
     fn multiple_unused_flagged() {
         let source = r#"#[cfg(test)] mod tests { fn helper_a() {} fn helper_b() {} #[test] fn test_foo() { assert_eq!(1, 1); } }"#;
-        assert_eq!(test_rule(&DeadTestHelper, source).len(), 2);
+        assert_eq!(
+            test_rule(&DeadTestHelper, source).len(),
+            2,
+            "multiple unused items should produce two diagnostics"
+        );
     }
 }

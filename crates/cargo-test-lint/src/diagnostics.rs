@@ -84,50 +84,90 @@ mod tests {
     use super::*;
 
     #[test]
-    fn diagnostic_level_from_str() {
-        assert_eq!("allow".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Allow);
-        assert_eq!("warn".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Warn);
-        assert_eq!("deny".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Deny);
-        assert_eq!("error".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Deny);
-        assert_eq!("forbid".parse::<DiagnosticLevel>().unwrap(), DiagnosticLevel::Forbid);
-        assert!("invalid".parse::<DiagnosticLevel>().is_err());
+    fn diagnostic_level_from_str_valid() {
+        assert_eq!(
+            "allow".parse::<DiagnosticLevel>().unwrap(),
+            DiagnosticLevel::Allow,
+            "allow should parse to Allow"
+        );
+        assert_eq!(
+            "warn".parse::<DiagnosticLevel>().unwrap(),
+            DiagnosticLevel::Warn,
+            "warn should parse to Warn"
+        );
+        assert_eq!(
+            "deny".parse::<DiagnosticLevel>().unwrap(),
+            DiagnosticLevel::Deny,
+            "deny should parse to Deny"
+        );
+        assert_eq!(
+            "error".parse::<DiagnosticLevel>().unwrap(),
+            DiagnosticLevel::Deny,
+            "error should parse to Deny"
+        );
+        assert_eq!(
+            "forbid".parse::<DiagnosticLevel>().unwrap(),
+            DiagnosticLevel::Forbid,
+            "forbid should parse to Forbid"
+        );
+    }
+
+    #[test]
+    fn diagnostic_level_from_str_invalid() {
+        assert!(
+            "invalid".parse::<DiagnosticLevel>().is_err(),
+            "invalid input should fail to parse"
+        );
     }
 
     #[test]
     fn diagnostic_level_is_error() {
-        assert!(!DiagnosticLevel::Allow.is_error());
-        assert!(!DiagnosticLevel::Warn.is_error());
-        assert!(DiagnosticLevel::Deny.is_error());
-        assert!(DiagnosticLevel::Forbid.is_error());
+        assert!(!DiagnosticLevel::Allow.is_error(), "Allow should not be an error");
+        assert!(!DiagnosticLevel::Warn.is_error(), "Warn should not be an error");
+        assert!(DiagnosticLevel::Deny.is_error(), "Deny should be an error");
+        assert!(DiagnosticLevel::Forbid.is_error(), "Forbid should be an error");
     }
 
     #[test]
-    fn has_errors_detects_violations() {
+    fn has_errors_empty_and_warnings() {
         let clean: Vec<Diagnostic> = vec![];
-        assert!(!Diagnostic::has_errors(&clean));
+        assert!(!Diagnostic::has_errors(&clean), "empty diagnostics should have no errors");
 
         let warnings = vec![make_diag(DiagnosticLevel::Warn)];
-        assert!(!Diagnostic::has_errors(&warnings));
-
-        let errors = vec![make_diag(DiagnosticLevel::Deny)];
-        assert!(Diagnostic::has_errors(&errors));
+        assert!(!Diagnostic::has_errors(&warnings), "warn-level diagnostics should have no errors");
     }
 
     #[test]
-    fn sort_by_position_orders_correctly() {
+    fn has_errors_with_deny() {
+        let errors = vec![make_diag(DiagnosticLevel::Deny)];
+        assert!(Diagnostic::has_errors(&errors), "deny-level diagnostics should have errors");
+    }
+
+    #[test]
+    fn sort_by_position_file_and_line() {
         let mut diags = vec![
             make_diag_at("b.rs", 10, 1),
             make_diag_at("a.rs", 5, 3),
             make_diag_at("a.rs", 5, 1),
         ];
         Diagnostic::sort_by_position(&mut diags);
-        assert_eq!(diags[0].file_path, PathBuf::from("a.rs"));
-        assert_eq!(diags[0].line, 5);
-        assert_eq!(diags[0].column, 1);
-        assert_eq!(diags[1].file_path, PathBuf::from("a.rs"));
-        assert_eq!(diags[1].line, 5);
-        assert_eq!(diags[1].column, 3);
-        assert_eq!(diags[2].file_path, PathBuf::from("b.rs"));
+        assert_eq!(diags[0].file_path, PathBuf::from("a.rs"), "first diag should be from a.rs");
+        assert_eq!(diags[0].line, 5, "first diag line should be 5");
+        assert_eq!(diags[0].column, 1, "first diag column should be 1");
+        assert_eq!(diags[1].file_path, PathBuf::from("a.rs"), "second diag should be from a.rs");
+        assert_eq!(diags[1].line, 5, "second diag line should be 5");
+    }
+
+    #[test]
+    fn sort_by_position_second_and_third() {
+        let mut diags = vec![
+            make_diag_at("b.rs", 10, 1),
+            make_diag_at("a.rs", 5, 3),
+            make_diag_at("a.rs", 5, 1),
+        ];
+        Diagnostic::sort_by_position(&mut diags);
+        assert_eq!(diags[1].column, 3, "second diag column should be 3");
+        assert_eq!(diags[2].file_path, PathBuf::from("b.rs"), "third diag should be from b.rs");
     }
 
     fn make_diag(level: DiagnosticLevel) -> Diagnostic {

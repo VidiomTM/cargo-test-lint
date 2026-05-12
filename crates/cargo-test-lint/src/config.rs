@@ -88,44 +88,69 @@ pub fn load(project_root: &Path) -> Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::io::Write;
+
+    fn write_file(path: &std::path::Path, content: &str) {
+        let mut f = std::fs::File::create(path).unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+    }
 
     #[test]
-    fn default_config_has_all_rules() {
+    fn default_config_rules_enabled() {
         let config = Config::default();
-        assert!(config.rule_enabled("assertion-roulette"));
-        assert!(config.rule_enabled("sleepy-test"));
-        assert!(config.rule_enabled("test-branching"));
-        assert_eq!(config.max_expects, 5);
-        assert_eq!(config.max_nested_mod, 3);
-        assert!(!config.nextest);
+        assert!(
+            config.rule_enabled("assertion-roulette"),
+            "assertion-roulette should be enabled by default"
+        );
+        assert!(config.rule_enabled("sleepy-test"), "sleepy-test should be enabled by default");
+        assert!(
+            config.rule_enabled("test-branching"),
+            "test-branching should be enabled by default"
+        );
+    }
+
+    #[test]
+    fn default_config_values() {
+        let config = Config::default();
+        assert_eq!(config.max_expects, 5, "default max_expects should be 5");
+        assert_eq!(config.max_nested_mod, 3, "default max_nested_mod should be 3");
+    }
+
+    #[test]
+    fn default_config_nextest_false() {
+        let config = Config::default();
+        assert!(!config.nextest, "nextest should be false by default");
     }
 
     #[test]
     fn rule_level_returns_default_when_not_configured() {
         let config = Config::default();
-        assert_eq!(config.rule_level("nonexistent", DiagnosticLevel::Deny), DiagnosticLevel::Deny);
+        assert_eq!(
+            config.rule_level("nonexistent", DiagnosticLevel::Deny),
+            DiagnosticLevel::Deny,
+            "unconfigured rule should return the provided default level"
+        );
     }
 
     #[test]
     fn rule_enabled_false_when_allowed() {
         let mut config = Config::default();
         config.rules.insert("test-rule".into(), DiagnosticLevel::Allow);
-        assert!(!config.rule_enabled("test-rule"));
+        assert!(!config.rule_enabled("test-rule"), "rule set to Allow should not be enabled");
     }
 
     #[test]
     fn load_returns_defaults_when_no_cargo_toml() {
         let tmp = tempfile::tempdir().unwrap();
         let config = load(tmp.path());
-        assert_eq!(config.max_expects, 5);
+        assert_eq!(config.max_expects, 5, "missing Cargo.toml should yield default max_expects");
     }
 
     #[test]
     fn load_parses_workspace_lints() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(
-            tmp.path().join("Cargo.toml"),
+        write_file(
+            &tmp.path().join("Cargo.toml"),
             r#"
 [workspace]
 members = ["crates/foo"]
@@ -136,19 +161,22 @@ max-expects = 10
 [workspace.lints.cargo-test-lint.rules]
 sleepy-test = "deny"
 "#,
-        )
-        .unwrap();
+        );
 
         let config = load(tmp.path());
-        assert_eq!(config.max_expects, 10);
-        assert_eq!(config.rule_level("sleepy-test", DiagnosticLevel::Warn), DiagnosticLevel::Deny);
+        assert_eq!(config.max_expects, 10, "workspace lints should set max_expects to 10");
+        assert_eq!(
+            config.rule_level("sleepy-test", DiagnosticLevel::Warn),
+            DiagnosticLevel::Deny,
+            "sleepy-test should be elevated to Deny by workspace config"
+        );
     }
 
     #[test]
     fn load_parses_package_level_lints() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(
-            tmp.path().join("Cargo.toml"),
+        write_file(
+            &tmp.path().join("Cargo.toml"),
             r#"
 [package]
 name = "test-crate"
@@ -156,10 +184,9 @@ name = "test-crate"
 [lints.cargo-test-lint]
 max-nested-mod = 2
 "#,
-        )
-        .unwrap();
+        );
 
         let config = load(tmp.path());
-        assert_eq!(config.max_nested_mod, 2);
+        assert_eq!(config.max_nested_mod, 2, "package-level lints should set max_nested_mod to 2");
     }
 }

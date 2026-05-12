@@ -99,22 +99,22 @@ mod tests {
     fn shallow_test_mod_passes() {
         let source = r#"#[cfg(test)] mod tests { #[test] fn test_foo() {} }"#;
         let diags = test_rule_with_config(&NestedMod, source, config_with_max(3));
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "expected shallow test mod to pass");
     }
 
     #[test]
     fn deeply_nested_test_mod_flagged() {
         let source = r#"mod outer { mod inner { mod tests { #[test] fn test_foo() {} } } }"#;
         let diags = test_rule_with_config(&NestedMod, source, config_with_max(2));
-        assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("depth 3"));
+        assert_eq!(diags.len(), 1, "expected deeply nested mod to be flagged");
+        assert!(diags[0].message.contains("depth 3"), "expected message to contain 'depth 3'");
     }
 
     #[test]
     fn non_test_mod_ignored() {
         let source = r#"mod a { mod b { mod c { fn helper() {} } } }"#;
         let diags = test_rule_with_config(&NestedMod, source, config_with_max(2));
-        assert_eq!(diags.len(), 0);
+        assert_eq!(diags.len(), 0, "expected non-test mod to be ignored");
     }
 
     #[test]
@@ -122,6 +122,6 @@ mod tests {
         let source =
             r#"mod a { mod b { #[cfg(test)] mod my_tests { #[test] fn test_foo() {} } } }"#;
         let diags = test_rule_with_config(&NestedMod, source, config_with_max(2));
-        assert_eq!(diags.len(), 1);
+        assert_eq!(diags.len(), 1, "expected cfg(test) attribute mod to be flagged");
     }
 }
