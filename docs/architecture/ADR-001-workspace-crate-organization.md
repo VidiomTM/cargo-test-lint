@@ -1,6 +1,20 @@
-# ADR-001: Workspace Structure and Crate Organization
-
-**Status:** Accepted
+---
+id: ADR-001
+kind: adr
+title: "Workspace Structure and Crate Organization"
+status: draft
+authors: []
+reviewers: []
+tags: []
+supersedes: []
+superseded_by: []
+depends_on: []
+blocks: []
+implements: []
+related: []
+external: []
+project: cargo-test-lint
+---
 
 **Context:** The project has pivoted from a coverage/mutation wrapper daemon to an AST-driven test quality linter. The architecture needs clear separation between the CLI entry point, the core lint engine, and the optional daemon process.
 

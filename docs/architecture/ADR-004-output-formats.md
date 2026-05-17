@@ -1,6 +1,20 @@
-# ADR-004: Output Formats (SARIF + Terminal)
-
-**Status:** Accepted
+---
+id: ADR-004
+kind: adr
+title: "Output Formats (SARIF + Terminal)"
+status: draft
+authors: []
+reviewers: []
+tags: []
+supersedes: []
+superseded_by: []
+depends_on: []
+blocks: []
+implements: []
+related: []
+external: []
+project: cargo-test-lint
+---
 
 **Context:** Lint diagnostics must be human-readable in the terminal for development and machine-readable for CI/CD integration. Different consumption contexts require different output formats.
 

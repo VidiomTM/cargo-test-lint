@@ -1,6 +1,20 @@
-# ADR-003: Configuration via Cargo.toml
-
-**Status:** Accepted
+---
+id: ADR-003
+kind: adr
+title: "Configuration via Cargo.toml"
+status: draft
+authors: []
+reviewers: []
+tags: []
+supersedes: []
+superseded_by: []
+depends_on: []
+blocks: []
+implements: []
+related: []
+external: []
+project: cargo-test-lint
+---
 
 **Context:** Rust RFC 3389 defines a standard `[lints]` table in Cargo.toml for tool configuration. Using this makes the linter feel native to the Rust ecosystem. Users configure test lint rules alongside clippy and rustc lints.
 

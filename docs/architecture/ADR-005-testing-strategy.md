@@ -1,6 +1,20 @@
-# ADR-005: Testing Strategy
-
-**Status:** Accepted
+---
+id: ADR-005
+kind: adr
+title: "Testing Strategy"
+status: draft
+authors: []
+reviewers: []
+tags: []
+supersedes: []
+superseded_by: []
+depends_on: []
+blocks: []
+implements: []
+related: []
+external: []
+project: cargo-test-lint
+---
 
 **Context:** A lint tool for test quality must itself be thoroughly tested. Rules must correctly identify violations without false positives. The AST-based approach means tests can use inline Rust source strings rather than real files.
 

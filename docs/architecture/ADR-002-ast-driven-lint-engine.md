@@ -1,6 +1,20 @@
-# ADR-002: AST-Driven Lint Engine with Tree-sitter
-
-**Status:** Accepted
+---
+id: ADR-002
+kind: adr
+title: "AST-Driven Lint Engine with Tree-sitter"
+status: draft
+authors: []
+reviewers: []
+tags: []
+supersedes: []
+superseded_by: []
+depends_on: []
+blocks: []
+implements: []
+related: []
+external: []
+project: cargo-test-lint
+---
 
 **Context:** The previous architecture wrapped `cargo-llvm-cov` and `cargo-mutants` via an async daemon with IPC. This required external tools, had high latency, and could not detect structural test quality issues like assertion roulette, sleepy tests, or dead helper functions.
 
