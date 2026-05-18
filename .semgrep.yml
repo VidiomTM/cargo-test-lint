@@ -1,0 +1,43 @@
+rules:
+  - id: rust-unwrapped-result
+    pattern: |
+      let $X = $EXPR;
+      ...
+      $X.unwrap()
+    message: "Unwrap without explicit error handling. Use ? operator or match."
+    severity: WARNING
+    languages: [rust]
+
+  - id: rust-expect-without-message
+    pattern: |
+      $X.expect("")
+    message: "expect() with empty message string. Provide a descriptive panic message."
+    severity: WARNING
+    languages: [rust]
+
+  - id: rust-unsafe-block
+    pattern: |
+      unsafe { $$$ }
+    message: "Unsafe block detected. Review for safety invariants."
+    severity: WARNING
+    languages: [rust]
+
+  - id: rust-hardcoded-string-compare
+    pattern: |
+      $X == $Y
+    message: "Use constant-time comparison for security-sensitive strings."
+    severity: INFO
+    languages: [rust]
+    metadata:
+      security: true
+
+  - id: rust-panic-in-library
+    pattern: |
+      panic!("$MSG")
+    message: "panics in library code. Return Result instead."
+    severity: WARNING
+    languages: [rust]
+    paths:
+      exclude:
+        - "**/tests/**"
+        - "**/benches/**"
