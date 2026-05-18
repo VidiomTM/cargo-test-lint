@@ -1,0 +1,19 @@
+{
+  "format": "rust",
+  "threshold": 10,
+  "report": "console",
+  "ignore": [
+    "**/tests/**",
+    "**/fixtures/**",
+    "target/**",
+    "**/*.toml",
+    "**/*.yml",
+    "**/*.md"
+  ],
+  "minLines": 10,
+  "maxLines": 1000,
+  "maxSize": "100kb",
+  "reporter": "console",
+  "silent": false,
+  "gitignore": true
+}
